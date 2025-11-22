@@ -1,0 +1,791 @@
+openapi: 3.1.0
+info:
+  title: Linear Game Backend API
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Workflow:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        idea: {type: string}
+        status: {type: string}
+        current_stage: {type: string}
+        stage_detail: {type: object, additionalProperties: true}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Asset:
+      type: object
+      properties:
+        type: {type: string}
+        version: {type: integer}
+        status: {type: string}
+        summary: {type: string}
+        updated_at: {type: string, format: date-time}
+    AssetResponse:
+      type: object
+      properties:
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        asset: {$ref: '#/components/schemas/Asset'}
+        payload: {}
+    CharacterImage:
+      type: object
+      properties:
+        character_id: {type: string}
+        name: {type: string}
+        prompt: {type: string}
+        url: {type: string}
+        mime_type: {type: string}
+        storage_key: {type: string}
+        origin: {type: string, enum: [ai, uploaded, hybrid]}
+        references:
+          type: array
+          items:
+            type: object
+            properties:
+              name: {type: string}
+              url: {type: string}
+              mime_type: {type: string}
+              storage_key: {type: string}
+    SceneImage:
+      type: object
+      properties:
+        scene_id: {type: string}
+        url: {type: string}
+        mime_type: {type: string}
+        prompt: {type: string}
+        params:
+          type: object
+          properties:
+            description_prompt: {type: string}
+            visual_style: {type: string}
+            ratio: {type: string}
+        storage_key: {type: string}
+    SceneVideo:
+      type: object
+      properties:
+        scene_id: {type: string}
+        url: {type: string}
+        mime_type: {type: string}
+        prompt: {type: string}
+        storage_key: {type: string}
+    VersionPointer:
+      type: object
+      properties:
+        versions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: {type: string, format: uuid}
+              version: {type: integer}
+              status: {type: string}
+              summary: {type: string}
+              asset_type: {type: string}
+              created_at: {type: string, format: date-time}
+              updated_at: {type: string, format: date-time}
+        selected_version:
+          type: integer
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        '200': {description: OK}
+
+  /api/v1/users/register:
+    post:
+      summary: Register with email/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string}
+                password: {type: string}
+      responses:
+        '200': {description: Auth tokens payload}
+  /api/v1/users/login:
+    post:
+      summary: Login with email/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: {type: string}
+                password: {type: string}
+      responses:
+        '200': {description: Auth tokens payload}
+  /api/v1/users/oauth/{provider}/start:
+    get:
+      summary: Start OAuth flow
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: {type: string, enum: [google]}
+        - in: query
+          name: redirect_uri
+          schema: {type: string}
+      responses:
+        '302': {description: Redirect to provider}
+  /api/v1/users/oauth/{provider}/callback:
+    get:
+      summary: OAuth callback
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema: {type: string}
+        - in: query
+          name: code
+          schema: {type: string}
+        - in: query
+          name: state
+          schema: {type: string}
+      responses:
+        '302': {description: Redirect with tokens}
+  /api/v1/users/token/refresh:
+    post:
+      summary: Refresh access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: {type: string}
+      responses:
+        '200': {description: Auth tokens payload}
+
+  /api/v1/workflows/story:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Generate story and characters
+      parameters:
+        - in: query
+          name: async
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                idea: {type: string}
+                workflow_id: {type: string, format: uuid}
+                story_style: {type: string}
+                visual_style: {type: string}
+                aspect_ratio: {type: string}
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                idea: {type: string}
+                workflow_id: {type: string, format: uuid}
+                story_style: {type: string}
+                visual_style: {type: string}
+                aspect_ratio: {type: string}
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200': {description: Story asset with characters}
+        '202': {description: Accepted async}
+
+  /api/v1/workflows/{workflowID}/plot:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Generate plot and scenes (chapters currently default to one)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: async
+          schema: {type: string}
+      responses:
+        '200': {description: Plot asset}
+        '202': {description: Accepted async}
+
+  /api/v1/workflows/{workflowID}/characters/images:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Generate character images from prompts
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Character images asset}
+        '202': {description: Accepted async}
+
+  /api/v1/workflows/{workflowID}/characters/{characterID}/images:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Regenerate a single character image (prompt or prompt + reference images)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: characterID
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt: {type: string}
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                prompt: {type: string}
+                references:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200': {description: Updated character images asset}
+
+  /api/v1/workflows/{workflowID}/characters/{characterID}/images/upload:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Upload a character image (manual)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: characterID
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200': {description: Updated character images asset}
+
+  /api/v1/workflows/{workflowID}/characters:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Add a character to the story payload
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, name, role_type, player, profile, image_prompt]
+              properties:
+                id: {type: string}
+                name: {type: string}
+                role_type: {type: string}
+                player: {type: integer}
+                profession: {type: string}
+                profile: {type: string}
+                image_prompt: {type: string}
+                voice: {type: string}
+      responses:
+        '200': {description: Updated story asset}
+  /api/v1/workflows/{workflowID}/characters/{characterID}:
+    delete:
+      security: [{bearerAuth: []}]
+      summary: Remove a character from the story payload
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: characterID
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Updated story asset}
+
+  /api/v1/workflows/{workflowID}/scenes/images:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Generate all scene images
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: async
+          schema: {type: string}
+      responses:
+        '200': {description: Scene images asset}
+        '202': {description: Accepted async}
+
+  /api/v1/workflows/{workflowID}/scenes/{sceneID}/images:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Regenerate a specific scene image
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: sceneID
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description_prompt: {type: string}
+      responses:
+        '200': {description: Updated scene images asset}
+
+  /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Regenerate a single scene video with a new motion prompt
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: sceneID
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: {type: string}
+                veo_model: {type: string}
+      responses:
+        '202': {description: Video job queued}
+
+  /api/v1/workflows/{workflowID}/videos:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Generate videos for all scenes or a specific scene
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scene_id: {type: string}
+                veo_model: {type: string}
+      responses:
+        '202': {description: Video job queued}
+
+  /api/v1/video-jobs/{jobID}:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Get video job status
+      parameters:
+        - in: path
+          name: jobID
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Job status}
+
+  /api/v1/workflows/{workflowID}:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Get workflow
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Workflow}
+
+  /api/v1/workflows:
+    get:
+      security: [{bearerAuth: []}]
+      summary: List workflows
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer}
+        - in: query
+          name: cursor
+          schema: {type: string}
+      responses:
+        '200': {description: Workflow list with cursor}
+
+  /api/v1/workflows/{workflowID}/story:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch story asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Story asset}
+
+  /api/v1/workflows/{workflowID}/plot:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch plot asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Plot asset}
+
+  /api/v1/workflows/{workflowID}/characters/images:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch character images asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Character images asset}
+
+  /api/v1/workflows/{workflowID}/scenes/images:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch scene images asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Scene images asset}
+
+  /api/v1/workflows/{workflowID}/videos:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch videos asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Videos asset}
+
+  /api/v1/workflows/{workflowID}/status:
+    get:
+      security: [{bearerAuth: []}]
+      summary: Get workflow stage/status snapshot
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200': {description: Status}
+
+  /api/v1/workflows/{workflowID}/chapters:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Add a chapter
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: {type: string}
+                title: {type: string}
+      responses:
+        '200': {description: Updated plot asset}
+
+  /api/v1/workflows/{workflowID}/chapters/{chapterID}:
+    delete:
+      security: [{bearerAuth: []}]
+      summary: Remove an empty chapter
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: chapterID
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Updated plot asset}
+
+  /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes:
+    post:
+      security: [{bearerAuth: []}]
+      summary: Add a scene to a chapter at a specific index
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: chapterID
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scene, insert_index]
+              properties:
+                insert_index: {type: integer, minimum: 0}
+                scene:
+                  type: object
+                  properties:
+                    scene_id: {type: string}
+                    short_introduction: {type: string}
+                    description: {type: string}
+                    character_ids:
+                      type: array
+                      items: {type: string}
+                    image_prompt_params:
+                      type: object
+                      properties:
+                        description_prompt: {type: string}
+                        visual_style: {type: string}
+                        ratio: {type: string}
+                    video_motion_prompt: {type: string}
+                    transition_logic:
+                      type: object
+                      properties:
+                        type: {type: string}
+                        details:
+                          type: object
+                          properties:
+                            next_scene: {type: string}
+                            options:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  text: {type: string}
+                                  next_scene: {type: string}
+      responses:
+        '200': {description: Updated plot asset}
+
+  /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes/{sceneID}:
+    delete:
+      security: [{bearerAuth: []}]
+      summary: Remove a scene (references to it are cleared)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: chapterID
+          required: true
+          schema: {type: string}
+        - in: path
+          name: sceneID
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Updated plot asset}
+    patch:
+      security: [{bearerAuth: []}]
+      summary: Patch a scene (supports scene_id rename; transition targets validated to chapter)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: chapterID
+          required: true
+          schema: {type: string}
+        - in: path
+          name: sceneID
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scene_id: {type: string}
+                short_introduction: {type: string}
+                description: {type: string}
+                character_ids:
+                  type: array
+                  items: {type: string}
+                image_prompt_params:
+                  type: object
+                  properties:
+                    description_prompt: {type: string}
+                    visual_style: {type: string}
+                    ratio: {type: string}
+                video_motion_prompt: {type: string}
+                transition_logic:
+                  type: object
+                  properties:
+                    type: {type: string}
+                    details:
+                      type: object
+                      properties:
+                        next_scene: {type: string}
+                        options:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              text: {type: string}
+                              next_scene: {type: string}
+      responses:
+        '200': {description: Updated plot asset}
+
+  /api/v1/workflows/{workflowID}/assets/{assetType}/versions:
+    get:
+      security: [{bearerAuth: []}]
+      summary: List asset versions and selected pointer (story, character_images, scene_images, videos)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: assetType
+          required: true
+          schema: {type: string, enum: [story, character_images, scene_images, videos]}
+        - in: query
+          name: limit
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Versions list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VersionPointer'}
+
+  /api/v1/workflows/{workflowID}/assets/{assetType}/selection:
+    patch:
+      security: [{bearerAuth: []}]
+      summary: Set or clear selected asset version (no copy)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: path
+          name: assetType
+          required: true
+          schema: {type: string, enum: [story, character_images, scene_images, videos]}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: integer
+                  description: Omit/null to clear selection
+      responses:
+        '200': {description: Selected version set}
+
+  /api/v1/workflows/{workflowID}/story/summary:
+    patch:
+      security: [{bearerAuth: []}]
+      summary: Update story summary text only
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [summary]
+              properties:
+                summary: {type: string}
+      responses:
+        '200': {description: Updated story asset}
