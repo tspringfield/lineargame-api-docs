@@ -229,6 +229,19 @@ paths:
       responses:
         '200': {description: Plot asset}
         '202': {description: Accepted async}
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch plot asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Plot asset}
 
   /api/v1/workflows/{workflowID}/characters/images:
     post:
@@ -242,6 +255,19 @@ paths:
       responses:
         '200': {description: Character images asset}
         '202': {description: Accepted async}
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch character images asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Character images asset}
 
   /api/v1/workflows/{workflowID}/characters/{characterID}/images:
     post:
@@ -360,6 +386,19 @@ paths:
       responses:
         '200': {description: Scene images asset}
         '202': {description: Accepted async}
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch scene images asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Scene images asset}
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/images:
     post:
@@ -429,6 +468,19 @@ paths:
                 veo_model: {type: string}
       responses:
         '202': {description: Video job queued}
+    get:
+      security: [{bearerAuth: []}]
+      summary: Fetch videos asset (supports version query)
+      parameters:
+        - in: path
+          name: workflowID
+          required: true
+          schema: {type: string, format: uuid}
+        - in: query
+          name: version
+          schema: {type: integer}
+      responses:
+        '200': {description: Videos asset}
 
   /api/v1/video-jobs/{jobID}:
     get:
@@ -482,66 +534,6 @@ paths:
           schema: {type: integer}
       responses:
         '200': {description: Story asset}
-
-  /api/v1/workflows/{workflowID}/plot:
-    get:
-      security: [{bearerAuth: []}]
-      summary: Fetch plot asset (supports version query)
-      parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
-      responses:
-        '200': {description: Plot asset}
-
-  /api/v1/workflows/{workflowID}/characters/images:
-    get:
-      security: [{bearerAuth: []}]
-      summary: Fetch character images asset (supports version query)
-      parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
-      responses:
-        '200': {description: Character images asset}
-
-  /api/v1/workflows/{workflowID}/scenes/images:
-    get:
-      security: [{bearerAuth: []}]
-      summary: Fetch scene images asset (supports version query)
-      parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
-      responses:
-        '200': {description: Scene images asset}
-
-  /api/v1/workflows/{workflowID}/videos:
-    get:
-      security: [{bearerAuth: []}]
-      summary: Fetch videos asset (supports version query)
-      parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
-      responses:
-        '200': {description: Videos asset}
 
   /api/v1/workflows/{workflowID}/status:
     get:
