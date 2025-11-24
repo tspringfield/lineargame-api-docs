@@ -4,37 +4,284 @@ info:
   version: 1.0.0
 servers:
   - url: https://api.example.com
+tags:
+  - name: Health
+  - name: Auth
+  - name: OAuth
+  - name: Workflows
+  - name: Characters
+  - name: Scenes
+  - name: Videos
+  - name: Assets
+  - name: Metadata
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    WorkflowID:
+      in: path
+      name: workflowID
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CharacterID:
+      in: path
+      name: characterID
+      required: true
+      schema:
+        type: string
+    SceneID:
+      in: path
+      name: sceneID
+      required: true
+      schema:
+        type: string
+    ChapterID:
+      in: path
+      name: chapterID
+      required: true
+      schema:
+        type: string
+    VersionQuery:
+      in: query
+      name: version
+      schema:
+        type: integer
+      description: Specific asset version to fetch; defaults to the latest or selected pointer.
+    AsyncQuery:
+      in: query
+      name: async
+      schema:
+        type: boolean
+      description: Return 202 Accepted and run work asynchronously when true.
+    PreferAsync:
+      in: header
+      name: Prefer
+      schema:
+        type: string
+        enum: ["respond-async"]
+      description: Alternative to `async=1`; returns 202 Accepted and processes in the background.
+    AssetTypeSelectable:
+      in: path
+      name: assetType
+      required: true
+      schema:
+        type: string
+        enum: [story, character_images, scene_images, videos]
+    JobID:
+      in: path
+      name: jobID
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Error400:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error401:
+      description: Unauthorized or missing token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Error404:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    AuthTokens:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Access token (Bearer JWT)
+        refresh_token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        expires_in:
+          type: integer
+          description: Seconds until the access token expires
+      required: [token, refresh_token, expires_at, expires_in]
+    WorkflowStatus:
+      type: string
+      enum: [pending, active, completed, failed]
+    StageStatus:
+      type: string
+      enum: [pending, in_progress, completed, failed]
+    AssetType:
+      type: string
+      enum: [story, plot, character_images, scene_images, videos]
+    VideoJobStatus:
+      type: string
+      enum: [queued, running, completed, failed]
+    StageDetail:
+      type: object
+      additionalProperties: true
+      description: |
+        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, videos_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
     Workflow:
       type: object
       properties:
         id: {type: string, format: uuid}
         idea: {type: string}
-        status: {type: string}
-        current_stage: {type: string}
-        stage_detail: {type: object, additionalProperties: true}
+        status: {$ref: '#/components/schemas/WorkflowStatus'}
+        current_stage: {$ref: '#/components/schemas/AssetType'}
+        stage_detail: {$ref: '#/components/schemas/StageDetail'}
         created_at: {type: string, format: date-time}
         updated_at: {type: string, format: date-time}
-    Asset:
+      required: [id, idea, status, current_stage, created_at, updated_at]
+    WorkflowAsset:
       type: object
       properties:
-        type: {type: string}
+        type: {$ref: '#/components/schemas/AssetType'}
         version: {type: integer}
-        status: {type: string}
+        status: {$ref: '#/components/schemas/StageStatus'}
         summary: {type: string}
         updated_at: {type: string, format: date-time}
-    AssetResponse:
+      required: [type, version, status, updated_at]
+    AssetEnvelope:
       type: object
       properties:
         workflow: {$ref: '#/components/schemas/Workflow'}
-        asset: {$ref: '#/components/schemas/Asset'}
-        payload: {}
+        asset: {$ref: '#/components/schemas/WorkflowAsset'}
+      required: [workflow, asset]
+    StoryCharacter:
+      type: object
+      properties:
+        id: {type: string}
+        name: {type: string}
+        role_type: {type: string}
+        player: {type: integer}
+        profession: {type: string}
+        profile: {type: string}
+        image_prompt: {type: string}
+        voice: {type: string}
+    CharacterInput:
+      allOf:
+        - $ref: '#/components/schemas/StoryCharacter'
+        - type: object
+          required: [id, name, role_type, profile, image_prompt]
+          properties:
+            player:
+              type: integer
+              description: Optional player slot; defaults to 0.
+    StoryContent:
+      type: object
+      properties:
+        prompt: {type: string}
+        language: {type: string}
+        genre: {type: string}
+        visual_style: {type: string}
+        image_ratio: {type: string}
+        story_summary: {type: string}
+        characters:
+          type: array
+          items: {$ref: '#/components/schemas/StoryCharacter'}
+      required: [prompt, language, genre, visual_style, image_ratio, story_summary, characters]
+    StoryReferenceFile:
+      type: object
+      properties:
+        name: {type: string}
+        storage_key: {type: string}
+        url: {type: string}
+        content_type: {type: string}
+        size: {type: integer}
+        openai_file_id: {type: string}
+    StoryAssetPayload:
+      type: object
+      properties:
+        idea: {type: string}
+        raw: {type: string, description: LLM raw response text}
+        story: {$ref: '#/components/schemas/StoryContent'}
+        meta:
+          type: object
+          properties:
+            reference_files:
+              type: array
+              items: {$ref: '#/components/schemas/StoryReferenceFile'}
+      required: [idea, raw, story]
+    ImagePromptParams:
+      type: object
+      properties:
+        description_prompt: {type: string}
+        visual_style: {type: string}
+        ratio: {type: string}
+    PlotTransitionOption:
+      type: object
+      properties:
+        text: {type: string}
+        next_scene: {type: string}
+    PlotTransitionDetails:
+      type: object
+      properties:
+        next_scene: {type: string}
+        options:
+          type: array
+          items: {$ref: '#/components/schemas/PlotTransitionOption'}
+    PlotTransition:
+      type: object
+      properties:
+        type: {type: string}
+        details: {$ref: '#/components/schemas/PlotTransitionDetails'}
+    Scene:
+      type: object
+      properties:
+        scene_id: {type: string}
+        short_introduction: {type: string}
+        description: {type: string}
+        character_ids:
+          type: array
+          items: {type: string}
+        image_prompt_params: {$ref: '#/components/schemas/ImagePromptParams'}
+        video_motion_prompt: {type: string}
+        transition_logic: {$ref: '#/components/schemas/PlotTransition'}
+      required: [scene_id]
+    Chapter:
+      type: object
+      properties:
+        id: {type: string}
+        title: {type: string}
+        scenes:
+          type: array
+          items: {$ref: '#/components/schemas/Scene'}
+      required: [id, scenes]
+    PlotAssetPayload:
+      type: object
+      properties:
+        raw: {type: string}
+        chapters:
+          type: array
+          items: {$ref: '#/components/schemas/Chapter'}
+        scenes:
+          type: array
+          items: {$ref: '#/components/schemas/Scene'}
+          description: Legacy flat list; chapters is preferred.
+      required: [raw, chapters]
+    CharacterImageReference:
+      type: object
+      properties:
+        name: {type: string}
+        url: {type: string}
+        mime_type: {type: string}
+        storage_key: {type: string}
     CharacterImage:
       type: object
       properties:
@@ -44,16 +291,28 @@ components:
         url: {type: string}
         mime_type: {type: string}
         storage_key: {type: string}
-        origin: {type: string, enum: [ai, uploaded, hybrid]}
+        origin:
+          type: string
+          enum: [ai, uploaded, hybrid]
         references:
           type: array
-          items:
-            type: object
-            properties:
-              name: {type: string}
-              url: {type: string}
-              mime_type: {type: string}
-              storage_key: {type: string}
+          items: {$ref: '#/components/schemas/CharacterImageReference'}
+    CharacterImageFailure:
+      type: object
+      properties:
+        character_id: {type: string}
+        name: {type: string}
+        error: {type: string}
+    CharacterImagesPayload:
+      type: object
+      properties:
+        images:
+          type: array
+          items: {$ref: '#/components/schemas/CharacterImage'}
+        failures:
+          type: array
+          items: {$ref: '#/components/schemas/CharacterImageFailure'}
+      required: [images]
     SceneImage:
       type: object
       properties:
@@ -61,13 +320,15 @@ components:
         url: {type: string}
         mime_type: {type: string}
         prompt: {type: string}
-        params:
-          type: object
-          properties:
-            description_prompt: {type: string}
-            visual_style: {type: string}
-            ratio: {type: string}
+        params: {$ref: '#/components/schemas/ImagePromptParams'}
         storage_key: {type: string}
+    SceneImagesPayload:
+      type: object
+      properties:
+        images:
+          type: array
+          items: {$ref: '#/components/schemas/SceneImage'}
+      required: [images]
     SceneVideo:
       type: object
       properties:
@@ -76,34 +337,151 @@ components:
         mime_type: {type: string}
         prompt: {type: string}
         storage_key: {type: string}
+    SceneVideoFailure:
+      type: object
+      properties:
+        scene_id: {type: string}
+        prompt: {type: string}
+        error: {type: string}
+    SceneVideosPayload:
+      type: object
+      properties:
+        videos:
+          type: array
+          items: {$ref: '#/components/schemas/SceneVideo'}
+        failures:
+          type: array
+          items: {$ref: '#/components/schemas/SceneVideoFailure'}
+      required: [videos]
+    VersionItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        version: {type: integer}
+        status: {$ref: '#/components/schemas/StageStatus'}
+        summary: {type: string}
+        asset_type: {$ref: '#/components/schemas/AssetType'}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+      required: [id, version, status, asset_type, updated_at]
     VersionPointer:
       type: object
       properties:
         versions:
           type: array
-          items:
-            type: object
-            properties:
-              id: {type: string, format: uuid}
-              version: {type: integer}
-              status: {type: string}
-              summary: {type: string}
-              asset_type: {type: string}
-              created_at: {type: string, format: date-time}
-              updated_at: {type: string, format: date-time}
+          items: {$ref: '#/components/schemas/VersionItem'}
         selected_version:
           type: integer
-security:
-  - bearerAuth: []
+          nullable: true
+      required: [versions]
+    StageSnapshot:
+      type: object
+      properties:
+        asset_type: {$ref: '#/components/schemas/AssetType'}
+        version: {type: integer}
+        status: {$ref: '#/components/schemas/StageStatus'}
+        summary: {type: string}
+        updated_at: {type: string, format: date-time}
+      required: [asset_type, status]
+    StageAcceptedResponse:
+      type: object
+      properties:
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        stage:
+          type: object
+          properties:
+            type: {$ref: '#/components/schemas/AssetType'}
+            status: {$ref: '#/components/schemas/StageStatus'}
+          required: [type, status]
+      required: [workflow, stage]
+    StoryAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/StoryAssetPayload'}
+          required: [payload]
+    PlotAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/PlotAssetPayload'}
+          required: [payload]
+    CharacterImagesAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/CharacterImagesPayload'}
+          required: [payload]
+    SceneImagesAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/SceneImagesPayload'}
+          required: [payload]
+    SceneVideosAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/SceneVideosPayload'}
+          required: [payload]
+    WorkflowListResponse:
+      type: object
+      properties:
+        workflows:
+          type: array
+          items: {$ref: '#/components/schemas/Workflow'}
+        next_cursor: {type: string}
+      required: [workflows]
+    WorkflowStatusResponse:
+      type: object
+      properties:
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        stages:
+          type: array
+          items: {$ref: '#/components/schemas/StageSnapshot'}
+      required: [workflow, stages]
+    VideoJob:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        workflow_id: {type: string, format: uuid}
+        status: {$ref: '#/components/schemas/VideoJobStatus'}
+        scene_id: {type: string, nullable: true}
+        veo_model: {type: string}
+        queue_position: {type: integer}
+        started_at: {type: string, format: date-time, nullable: true}
+        completed_at: {type: string, format: date-time, nullable: true}
+        result_asset_id: {type: string, format: uuid, nullable: true}
+        error_message: {type: string}
+      required: [id, workflow_id, status, veo_model, queue_position]
+    SelectedVersionResponse:
+      type: object
+      properties:
+        selected_version:
+          type: integer
+          nullable: true
 paths:
   /healthz:
     get:
+      tags: [Health]
       summary: Health check
       responses:
-        '200': {description: OK}
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
 
   /api/v1/users/register:
     post:
+      tags: [Auth]
       summary: Register with email/password
       requestBody:
         required: true
@@ -113,12 +491,31 @@ paths:
               type: object
               required: [email, password]
               properties:
-                email: {type: string}
-                password: {type: string}
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
       responses:
-        '200': {description: Auth tokens payload}
+        '201':
+          description: Auth tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/users/login:
     post:
+      tags: [Auth]
       summary: Login with email/password
       requestBody:
         required: true
@@ -128,12 +525,25 @@ paths:
               type: object
               required: [email, password]
               properties:
-                email: {type: string}
+                email:
+                  type: string
+                  format: email
                 password: {type: string}
       responses:
-        '200': {description: Auth tokens payload}
+        '200':
+          description: Auth tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
   /api/v1/users/oauth/{provider}/start:
     get:
+      tags: [OAuth]
       summary: Start OAuth flow
       parameters:
         - in: path
@@ -142,27 +552,62 @@ paths:
           schema: {type: string, enum: [google]}
         - in: query
           name: redirect_uri
-          schema: {type: string}
+          required: true
+          schema: {type: string, format: uri}
       responses:
-        '302': {description: Redirect to provider}
+        '302':
+          description: Redirect to provider
+        '400':
+          $ref: '#/components/responses/Error400'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '503':
+          description: OAuth provider not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/users/oauth/{provider}/callback:
     get:
+      tags: [OAuth]
       summary: OAuth callback
       parameters:
         - in: path
           name: provider
           required: true
-          schema: {type: string}
+          schema: {type: string, enum: [google]}
         - in: query
           name: code
+          required: true
           schema: {type: string}
         - in: query
           name: state
+          required: true
           schema: {type: string}
       responses:
-        '302': {description: Redirect with tokens}
+        '302':
+          description: Redirects to redirect_uri with tokens or oauth_error params
+        '200':
+          description: Tokens returned directly when redirect is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '503':
+          description: OAuth provider not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/v1/users/token/refresh:
     post:
+      tags: [Auth]
       summary: Refresh access token
       requestBody:
         required: true
@@ -174,18 +619,28 @@ paths:
               properties:
                 refresh_token: {type: string}
       responses:
-        '200': {description: Auth tokens payload}
+        '200':
+          description: Auth tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokens'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
 
   /api/v1/workflows/story:
     post:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
       summary: Generate story and characters
+      description: Idea is required when creating a new workflow; when workflow_id is provided the existing idea can be reused.
       parameters:
-        - in: query
-          name: async
-          schema: {type: string}
+        - $ref: '#/components/parameters/AsyncQuery'
+        - $ref: '#/components/parameters/PreferAsync'
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -211,78 +666,129 @@ paths:
                     type: string
                     format: binary
       responses:
-        '200': {description: Story asset with characters}
-        '202': {description: Accepted async}
+        '200':
+          description: Story asset with characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryAssetResponse'
+        '202':
+          description: Accepted for async processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/plot:
     post:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
-      summary: Generate plot and scenes (chapters currently default to one)
+      summary: Generate plot and scenes (chapters default to one)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: async
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AsyncQuery'
+        - $ref: '#/components/parameters/PreferAsync'
       responses:
-        '200': {description: Plot asset}
-        '202': {description: Accepted async}
+        '200':
+          description: Plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '202':
+          description: Accepted for async processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
     get:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
-      summary: Fetch plot asset (supports version query)
+      summary: Fetch plot asset
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
-        '200': {description: Plot asset}
+        '200':
+          description: Plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/characters/images:
     post:
+      tags: [Characters]
       security: [{bearerAuth: []}]
       summary: Generate character images from prompts
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AsyncQuery'
+        - $ref: '#/components/parameters/PreferAsync'
       responses:
-        '200': {description: Character images asset}
-        '202': {description: Accepted async}
+        '200':
+          description: Character images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterImagesAssetResponse'
+        '202':
+          description: Accepted for async processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
     get:
+      tags: [Characters]
       security: [{bearerAuth: []}]
-      summary: Fetch character images asset (supports version query)
+      summary: Fetch character images asset
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
-        '200': {description: Character images asset}
+        '200':
+          description: Character images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterImagesAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/characters/{characterID}/images:
     post:
+      tags: [Characters]
       security: [{bearerAuth: []}]
       summary: Regenerate a single character image (prompt or prompt + reference images)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: characterID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/CharacterID'
       requestBody:
+        required: false
         content:
           application/json:
             schema:
@@ -300,21 +806,27 @@ paths:
                     type: string
                     format: binary
       responses:
-        '200': {description: Updated character images asset}
+        '200':
+          description: Updated character images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterImagesAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/characters/{characterID}/images/upload:
     post:
+      tags: [Characters]
       security: [{bearerAuth: []}]
-      summary: Upload a character image (manual)
+      summary: Upload a character image (manual override)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: characterID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/CharacterID'
       requestBody:
         required: true
         content:
@@ -325,95 +837,127 @@ paths:
                 file:
                   type: string
                   format: binary
+              required: [file]
       responses:
-        '200': {description: Updated character images asset}
+        '200':
+          description: Updated character images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CharacterImagesAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/characters:
     post:
+      tags: [Characters]
       security: [{bearerAuth: []}]
       summary: Add a character to the story payload
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [id, name, role_type, player, profile, image_prompt]
-              properties:
-                id: {type: string}
-                name: {type: string}
-                role_type: {type: string}
-                player: {type: integer}
-                profession: {type: string}
-                profile: {type: string}
-                image_prompt: {type: string}
-                voice: {type: string}
+              $ref: '#/components/schemas/CharacterInput'
       responses:
-        '200': {description: Updated story asset}
+        '200':
+          description: Updated story asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
   /api/v1/workflows/{workflowID}/characters/{characterID}:
     delete:
+      tags: [Characters]
       security: [{bearerAuth: []}]
       summary: Remove a character from the story payload
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: characterID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/CharacterID'
       responses:
-        '200': {description: Updated story asset}
+        '200':
+          description: Updated story asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/scenes/images:
     post:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Generate all scene images
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: async
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AsyncQuery'
+        - $ref: '#/components/parameters/PreferAsync'
       responses:
-        '200': {description: Scene images asset}
-        '202': {description: Accepted async}
+        '200':
+          description: Scene images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImagesAssetResponse'
+        '202':
+          description: Accepted for async processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
     get:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
-      summary: Fetch scene images asset (supports version query)
+      summary: Fetch scene images asset
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
-        '200': {description: Scene images asset}
+        '200':
+          description: Scene images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImagesAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/images:
     post:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Regenerate a specific scene image
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: sceneID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
       requestBody:
+        required: false
         content:
           application/json:
             schema:
@@ -421,21 +965,27 @@ paths:
               properties:
                 description_prompt: {type: string}
       responses:
-        '200': {description: Updated scene images asset}
+        '200':
+          description: Updated scene images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImagesAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos:
     post:
+      tags: [Videos]
       security: [{bearerAuth: []}]
       summary: Regenerate a single scene video with a new motion prompt
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: sceneID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
       requestBody:
         required: true
         content:
@@ -445,117 +995,184 @@ paths:
               required: [prompt]
               properties:
                 prompt: {type: string}
-                veo_model: {type: string}
+                veo_model:
+                  type: string
+                  enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
-        '202': {description: Video job queued}
+        '202':
+          description: Video job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoJob'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/videos:
     post:
+      tags: [Videos]
       security: [{bearerAuth: []}]
       summary: Generate videos for all scenes or a specific scene
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       requestBody:
+        required: false
         content:
           application/json:
             schema:
               type: object
               properties:
                 scene_id: {type: string}
-                veo_model: {type: string}
+                veo_model:
+                  type: string
+                  enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
-        '202': {description: Video job queued}
+        '202':
+          description: Video job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoJob'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
     get:
+      tags: [Videos]
       security: [{bearerAuth: []}]
-      summary: Fetch videos asset (supports version query)
+      summary: Fetch videos asset
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
-        '200': {description: Videos asset}
+        '200':
+          description: Videos asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneVideosAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/video-jobs/{jobID}:
     get:
+      tags: [Videos]
       security: [{bearerAuth: []}]
       summary: Get video job status
       parameters:
-        - in: path
-          name: jobID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/JobID'
       responses:
-        '200': {description: Job status}
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VideoJob'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}:
     get:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
       summary: Get workflow
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       responses:
-        '200': {description: Workflow}
+        '200':
+          description: Workflow
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows:
     get:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
       summary: List workflows
       parameters:
         - in: query
           name: limit
-          schema: {type: integer}
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
         - in: query
           name: cursor
           schema: {type: string}
+          description: Opaque pagination cursor returned by the previous page.
       responses:
-        '200': {description: Workflow list with cursor}
+        '200':
+          description: Workflow list with cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowListResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
 
   /api/v1/workflows/{workflowID}/story:
     get:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
-      summary: Fetch story asset (supports version query)
+      summary: Fetch story asset
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: query
-          name: version
-          schema: {type: integer}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
-        '200': {description: Story asset}
+        '200':
+          description: Story asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/status:
     get:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
       summary: Get workflow stage/status snapshot
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       responses:
-        '200': {description: Status}
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatusResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/chapters:
     post:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Add a chapter
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       requestBody:
         required: true
         content:
@@ -567,37 +1184,49 @@ paths:
                 id: {type: string}
                 title: {type: string}
       responses:
-        '200': {description: Updated plot asset}
+        '200':
+          description: Updated plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/chapters/{chapterID}:
     delete:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Remove an empty chapter
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: chapterID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
       responses:
-        '200': {description: Updated plot asset}
+        '200':
+          description: Updated plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes:
     post:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Add a scene to a chapter at a specific index
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: chapterID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
       requestBody:
         required: true
         content:
@@ -606,77 +1235,57 @@ paths:
               type: object
               required: [scene, insert_index]
               properties:
-                insert_index: {type: integer, minimum: 0}
+                insert_index:
+                  type: integer
+                  minimum: 0
                 scene:
-                  type: object
-                  properties:
-                    scene_id: {type: string}
-                    short_introduction: {type: string}
-                    description: {type: string}
-                    character_ids:
-                      type: array
-                      items: {type: string}
-                    image_prompt_params:
-                      type: object
-                      properties:
-                        description_prompt: {type: string}
-                        visual_style: {type: string}
-                        ratio: {type: string}
-                    video_motion_prompt: {type: string}
-                    transition_logic:
-                      type: object
-                      properties:
-                        type: {type: string}
-                        details:
-                          type: object
-                          properties:
-                            next_scene: {type: string}
-                            options:
-                              type: array
-                              items:
-                                type: object
-                                properties:
-                                  text: {type: string}
-                                  next_scene: {type: string}
+                  $ref: '#/components/schemas/Scene'
       responses:
-        '200': {description: Updated plot asset}
+        '200':
+          description: Updated plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes/{sceneID}:
     delete:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Remove a scene (references to it are cleared)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: chapterID
-          required: true
-          schema: {type: string}
-        - in: path
-          name: sceneID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+        - $ref: '#/components/parameters/SceneID'
       responses:
-        '200': {description: Updated plot asset}
+        '200':
+          description: Updated plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
     patch:
+      tags: [Scenes]
       security: [{bearerAuth: []}]
       summary: Patch a scene (supports scene_id rename; transition targets validated to chapter)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: chapterID
-          required: true
-          schema: {type: string}
-        - in: path
-          name: sceneID
-          required: true
-          schema: {type: string}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+        - $ref: '#/components/parameters/SceneID'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -689,67 +1298,63 @@ paths:
                   type: array
                   items: {type: string}
                 image_prompt_params:
-                  type: object
-                  properties:
-                    description_prompt: {type: string}
-                    visual_style: {type: string}
-                    ratio: {type: string}
+                  $ref: '#/components/schemas/ImagePromptParams'
                 video_motion_prompt: {type: string}
                 transition_logic:
-                  type: object
-                  properties:
-                    type: {type: string}
-                    details:
-                      type: object
-                      properties:
-                        next_scene: {type: string}
-                        options:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              text: {type: string}
-                              next_scene: {type: string}
+                  $ref: '#/components/schemas/PlotTransition'
       responses:
-        '200': {description: Updated plot asset}
+        '200':
+          description: Updated plot asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlotAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/assets/{assetType}/versions:
     get:
+      tags: [Assets]
       security: [{bearerAuth: []}]
       summary: List asset versions and selected pointer (story, character_images, scene_images, videos)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: assetType
-          required: true
-          schema: {type: string, enum: [story, character_images, scene_images, videos]}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AssetTypeSelectable'
         - in: query
           name: limit
-          schema: {type: integer}
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 20
       responses:
         '200':
           description: Versions list
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/VersionPointer'}
+              schema:
+                $ref: '#/components/schemas/VersionPointer'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/assets/{assetType}/selection:
     patch:
+      tags: [Assets]
       security: [{bearerAuth: []}]
       summary: Set or clear selected asset version (no copy)
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
-        - in: path
-          name: assetType
-          required: true
-          schema: {type: string, enum: [story, character_images, scene_images, videos]}
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AssetTypeSelectable'
       requestBody:
+        required: false
         content:
           application/json:
             schema:
@@ -757,19 +1362,29 @@ paths:
               properties:
                 version:
                   type: integer
-                  description: Omit/null to clear selection
+                  nullable: true
+                  description: Omit or null to clear selection.
       responses:
-        '200': {description: Selected version set}
+        '200':
+          description: Selected version set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectedVersionResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/{workflowID}/story/summary:
     patch:
+      tags: [Workflows]
       security: [{bearerAuth: []}]
       summary: Update story summary text only
       parameters:
-        - in: path
-          name: workflowID
-          required: true
-          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/WorkflowID'
       requestBody:
         required: true
         content:
@@ -780,4 +1395,15 @@ paths:
               properties:
                 summary: {type: string}
       responses:
-        '200': {description: Updated story asset}
+        '200':
+          description: Updated story asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoryAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
