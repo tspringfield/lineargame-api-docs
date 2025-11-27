@@ -178,7 +178,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/StoryCharacter'
         - type: object
-          required: [id, name, role_type, profile, image_prompt]
+          required: [name, role_type, profile, image_prompt]
           properties:
             player:
               type: integer
