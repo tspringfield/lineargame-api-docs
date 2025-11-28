@@ -966,24 +966,24 @@ paths:
                   properties:
                     image_method: {$ref: '#/components/schemas/ImageMethod'}
                     prompt: {type: string, description: Optional prompt override when generating during creation}
-           multipart/form-data:
-             schema:
-               type: object
-               properties:
-                 character:
-                   type: string
-                   description: JSON-encoded CharacterInput
-                 image_method: {$ref: '#/components/schemas/ImageMethod'}
-                 prompt: {type: string}
-                 file:
-                   type: string
-                   format: binary
-                 references:
-                   type: array
-                   items:
-                     type: string
-                     format: binary
-               required: [character]
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                character:
+                  type: string
+                  description: JSON-encoded CharacterInput
+                image_method: {$ref: '#/components/schemas/ImageMethod'}
+                prompt: {type: string}
+                file:
+                  type: string
+                  format: binary
+                references:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required: [character]
       responses:
         '200':
           description: Updated story asset
