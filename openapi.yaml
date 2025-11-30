@@ -1125,7 +1125,7 @@ paths:
       tags: [Videos]
       security: [{bearerAuth: []}]
       summary: Upload a video file for a scene
-      description: Accept a single video upload (max 100MB); prompt is optional and defaults to the scene's video_motion_prompt.
+      description: Accept a single video upload (max 100MB).
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/SceneID'
@@ -1136,9 +1136,6 @@ paths:
             schema:
               type: object
               properties:
-                prompt:
-                  type: string
-                  description: Optional override; defaults to the scene's video_motion_prompt.
                 file:
                   type: string
                   format: binary
