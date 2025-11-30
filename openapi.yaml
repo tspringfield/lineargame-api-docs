@@ -172,13 +172,15 @@ components:
         player: {type: integer}
         profession: {type: string}
         profile: {type: string}
-        image_prompt: {type: string}
+        image_prompt:
+          type: string
+          description: Required unless image_method is upload
         voice: {type: string}
     CharacterInput:
       allOf:
         - $ref: '#/components/schemas/StoryCharacter'
         - type: object
-          required: [name, role_type, profile, image_prompt]
+          required: [name, profile]
           properties:
             player:
               type: integer
@@ -1374,7 +1376,9 @@ paths:
                 scene:
                   $ref: '#/components/schemas/Scene'
                 image_method: {$ref: '#/components/schemas/ImageMethod'}
-                description_prompt: {type: string}
+                description_prompt:
+                  type: string
+                  description: Required unless image_method is upload
               required: [scene, insert_index]
           multipart/form-data:
             schema:
@@ -1386,7 +1390,9 @@ paths:
                 insert_index:
                   type: integer
                 image_method: {$ref: '#/components/schemas/ImageMethod'}
-                description_prompt: {type: string}
+                description_prompt:
+                  type: string
+                  description: Required unless image_method is upload
                 file:
                   type: string
                   format: binary
