@@ -98,6 +98,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Error413:
+      description: Payload too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
     Error:
       type: object
@@ -1113,6 +1119,46 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos/upload:
+    post:
+      tags: [Videos]
+      security: [{bearerAuth: []}]
+      summary: Upload a video file for a scene
+      description: Accept a single video upload (max 100MB); prompt is optional and defaults to the scene's video_motion_prompt.
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  description: Optional override; defaults to the scene's video_motion_prompt.
+                file:
+                  type: string
+                  format: binary
+                  description: Video file to attach to the scene (max 100MB).
+              required: [file]
+      responses:
+        '200':
+          description: Updated videos asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneVideosAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos:
     post:
