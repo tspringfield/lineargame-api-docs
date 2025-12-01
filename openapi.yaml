@@ -14,6 +14,8 @@ tags:
   - name: Videos
   - name: Assets
   - name: Metadata
+  - name: Credits
+  - name: Mock
 components:
   securitySchemes:
     bearerAuth:
@@ -168,6 +170,7 @@ components:
       properties:
         workflow: {$ref: '#/components/schemas/Workflow'}
         asset: {$ref: '#/components/schemas/WorkflowAsset'}
+        credits: {$ref: '#/components/schemas/CreditUsage'}
       required: [workflow, asset]
     StoryCharacter:
       type: object
@@ -506,6 +509,7 @@ components:
         completed_at: {type: string, format: date-time, nullable: true}
         result_asset_id: {type: string, format: uuid, nullable: true}
         error_message: {type: string}
+        credits: {$ref: '#/components/schemas/CreditUsage'}
       required: [id, workflow_id, status, veo_model, queue_position]
     SelectedVersionResponse:
       type: object
@@ -513,6 +517,55 @@ components:
         selected_version:
           type: integer
           nullable: true
+    SubscriptionTier:
+      type: string
+      enum: [free, pro, ultra]
+    CreditType:
+      type: string
+      enum: [monthly, event, top_up]
+    Subscription:
+      type: object
+      properties:
+        tier: {$ref: '#/components/schemas/SubscriptionTier'}
+        auto_renew: {type: boolean}
+        period_start: {type: string, format: date-time}
+        period_end: {type: string, format: date-time}
+      required: [tier, auto_renew, period_start, period_end]
+    CreditBucket:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        type: {$ref: '#/components/schemas/CreditType'}
+        source: {type: string}
+        remaining: {type: integer}
+        expires_at: {type: string, format: date-time}
+        period_end: {type: string, format: date-time}
+      required: [id, type, remaining]
+    CreditsTotals:
+      type: object
+      description: Totals per credit bucket type.
+      additionalProperties:
+        type: integer
+    Credits:
+      type: object
+      properties:
+        subscription: {$ref: '#/components/schemas/Subscription'}
+        buckets:
+          type: array
+          items: {$ref: '#/components/schemas/CreditBucket'}
+        totals: {$ref: '#/components/schemas/CreditsTotals'}
+        total_available: {type: integer}
+      required: [subscription, buckets, totals, total_available]
+    CreditUsage:
+      type: object
+      properties:
+        requested: {type: integer}
+        processed: {type: integer}
+        unit_cost: {type: integer}
+        charged: {type: integer}
+        shortfall: {type: integer}
+        available: {type: integer}
+      required: [requested, processed, unit_cost, charged]
 paths:
   /healthz:
     get:
@@ -677,6 +730,83 @@ paths:
           $ref: '#/components/responses/Error400'
         '401':
           $ref: '#/components/responses/Error401'
+
+  /api/v1/users/me/credits:
+    get:
+      tags: [Credits]
+      security: [{bearerAuth: []}]
+      summary: Get subscription tier and credit balances
+      responses:
+        '200':
+          description: Credit balances
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credits'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/mock/users/{userID}/subscription:
+    post:
+      tags: [Mock]
+      summary: Mock set user subscription tier and monthly credits
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tier]
+              properties:
+                tier: {$ref: '#/components/schemas/SubscriptionTier'}
+                auto_renew: {type: boolean}
+      responses:
+        '200':
+          description: Updated subscription and credits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credits'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/mock/users/{userID}/booster:
+    post:
+      tags: [Mock]
+      summary: Mock grant a booster (top-up credits)
+      parameters:
+        - in: path
+          name: userID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: {type: integer}
+                source: {type: string}
+      responses:
+        '200':
+          description: Updated credits after booster
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Credits'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '404':
+          $ref: '#/components/responses/Error404'
 
   /api/v1/workflows/story:
     post:
