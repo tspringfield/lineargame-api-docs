@@ -73,7 +73,7 @@ components:
       required: true
       schema:
         type: string
-        enum: [story, character_images, scene_images, videos]
+        enum: [story, character_images, scene_images, first_frame_images, videos]
     JobID:
       in: path
       name: jobID
@@ -136,7 +136,7 @@ components:
       enum: [pending, in_progress, completed, failed]
     AssetType:
       type: string
-      enum: [story, plot, character_images, scene_images, videos]
+      enum: [story, plot, character_images, scene_images, first_frame_images, videos]
     VideoJobStatus:
       type: string
       enum: [queued, running, completed, failed]
@@ -144,7 +144,7 @@ components:
       type: object
       additionalProperties: true
       description: |
-        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, videos_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
+        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, first_frame_images_version, videos_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
     Workflow:
       type: object
       properties:
@@ -388,6 +388,9 @@ components:
         mime_type: {type: string}
         prompt: {type: string}
         storage_key: {type: string}
+        scene_image_version: {type: integer}
+        first_frame_image_version: {type: integer}
+        out_of_sync: {type: boolean}
     SceneVideoFailure:
       type: object
       properties:
@@ -891,6 +894,99 @@ paths:
         '404':
           $ref: '#/components/responses/Error404'
 
+  /api/v1/workflows/{workflowID}/first-frame/images:
+    get:
+      tags: [Scenes]
+      security: [{bearerAuth: []}]
+      summary: Fetch first frame images asset
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
+      responses:
+        '200':
+          description: First frame images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImagesAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/scenes/{sceneID}/first-frame/images:
+    post:
+      tags: [Scenes]
+      security: [{bearerAuth: []}]
+      summary: Upload or generate a first frame image for a scene
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description_prompt: {type: string}
+                image_method: {$ref: '#/components/schemas/ImageMethod'}
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                description_prompt: {type: string}
+                image_method: {$ref: '#/components/schemas/ImageMethod'}
+                file:
+                  type: string
+                  format: binary
+                references:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: First frame images asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImagesAssetResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/scenes/{sceneID}/first-frame/images/history:
+    get:
+      tags: [Scenes]
+      security: [{bearerAuth: []}]
+      summary: List successful first frame image generations and uploads (newest first)
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+        - in: query
+          name: limit
+          schema: {type: integer, default: 20, maximum: 100}
+        - in: query
+          name: cursor
+          schema: {type: integer, description: Fetch entries before this asset version}
+      responses:
+        '200':
+          description: First frame image history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneImageHistoryResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
   /api/v1/workflows/{workflowID}/plot:
     post:
       tags: [Workflows]
@@ -1255,7 +1351,7 @@ paths:
       tags: [Videos]
       security: [{bearerAuth: []}]
       summary: Upload a video file for a scene
-      description: Accept a single video upload (max 100MB).
+      description: Accept a single video upload (max 100MB). Uploaded videos do not capture motion prompts; the prompt field will be empty.
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/SceneID'
