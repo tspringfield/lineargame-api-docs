@@ -136,7 +136,7 @@ components:
       enum: [pending, in_progress, completed, failed]
     AssetType:
       type: string
-      enum: [story, plot, character_images, scene_images, first_frame_images, videos]
+      enum: [story, plot, character_images, scene_images, first_frame_images, videos, publish]
     VideoJobStatus:
       type: string
       enum: [queued, running, completed, failed]
@@ -144,7 +144,7 @@ components:
       type: object
       additionalProperties: true
       description: |
-        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, first_frame_images_version, videos_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
+        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, first_frame_images_version, videos_version, publish_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
     Workflow:
       type: object
       properties:
@@ -407,6 +407,33 @@ components:
           type: array
           items: {$ref: '#/components/schemas/SceneVideoFailure'}
       required: [videos]
+    PublishAssetPayload:
+      type: object
+      properties:
+        game_config_url: {type: string}
+        cdn_base: {type: string}
+        start_scene_id: {type: string}
+        nodes_count: {type: integer}
+        game_name: {type: string}
+        game_picture:
+          type: string
+          description: URL returned from the publish cover upload for this workflow
+        game_genre:
+          type: string
+          description: Optional genre label
+        viewer_url: {type: string}
+      required: [game_config_url, cdn_base, start_scene_id, nodes_count, game_name]
+    PublishCover:
+      type: object
+      properties:
+        key: {type: string}
+        url: {type: string}
+        content_type: {type: string}
+        size:
+          type: integer
+          format: int64
+          description: Size in bytes
+      required: [key, url, content_type, size]
     VersionItem:
       type: object
       properties:
@@ -483,6 +510,19 @@ components:
           properties:
             payload: {$ref: '#/components/schemas/SceneVideosPayload'}
           required: [payload]
+    PublishAssetResponse:
+      allOf:
+        - $ref: '#/components/schemas/AssetEnvelope'
+        - type: object
+          properties:
+            payload: {$ref: '#/components/schemas/PublishAssetPayload'}
+          required: [payload]
+    PublishCoverResponse:
+      type: object
+      properties:
+        workflow: {$ref: '#/components/schemas/Workflow'}
+        cover: {$ref: '#/components/schemas/PublishCover'}
+      required: [workflow, cover]
     WorkflowListResponse:
       type: object
       properties:
@@ -1462,6 +1502,97 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SceneVideosAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/publish/cover:
+    post:
+      tags: [Workflows]
+      security: [{bearerAuth: []}]
+      summary: Upload a publish cover image
+      description: Upload a cover image (JPEG, PNG, or WebP up to 10MB). Use the returned URL as game_picture when publishing.
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Cover image file (max 10MB)
+              required: [file]
+      responses:
+        '200':
+          description: Cover uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishCoverResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/publish:
+    post:
+      tags: [Workflows]
+      security: [{bearerAuth: []}]
+      summary: Publish the game
+      description: Starts the publish stage with the provided metadata. Upload a cover first if including game_picture.
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [game_name]
+              properties:
+                game_name:
+                  type: string
+                  description: Name shown to players
+                game_picture:
+                  type: string
+                  description: URL returned from the publish cover upload for this workflow
+                game_genre:
+                  type: string
+                  description: Optional genre label
+      responses:
+        '202':
+          description: Accepted for publishing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageAcceptedResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+    get:
+      tags: [Workflows]
+      security: [{bearerAuth: []}]
+      summary: Fetch publish asset
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/VersionQuery'
+      responses:
+        '200':
+          description: Publish asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishAssetResponse'
         '401':
           $ref: '#/components/responses/Error401'
         '404':
