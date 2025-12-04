@@ -599,6 +599,39 @@ components:
         totals: {$ref: '#/components/schemas/CreditsTotals'}
         total_available: {type: integer}
       required: [subscription, buckets, totals, total_available]
+    CreditTransactionDirection:
+      type: string
+      enum: [earn, spend, expire, refund]
+    CreditTransactionType:
+      type: string
+      enum: [subscription, top_up, scene_image, character_image, first_frame, video, refund, expire]
+    CreditTransaction:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        direction: {$ref: '#/components/schemas/CreditTransactionDirection'}
+        type: {$ref: '#/components/schemas/CreditTransactionType'}
+        amount: {type: integer}
+        running_balance_after: {type: integer}
+        timestamp:
+          type: integer
+          description: Unix timestamp (seconds)
+        description: {type: string}
+        workflow_id: {type: string, format: uuid}
+        bucket_source: {type: string}
+        subscription_tier: {$ref: '#/components/schemas/SubscriptionTier'}
+      required: [id, direction, type, amount, running_balance_after, timestamp]
+    CreditTransactionPage:
+      type: object
+      properties:
+        page: {type: integer}
+        page_size: {type: integer}
+        total: {type: integer}
+        has_more: {type: boolean}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/CreditTransaction'}
+      required: [page, page_size, total, has_more, items]
     CreditUsage:
       type: object
       properties:
@@ -786,6 +819,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Credits'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/credits/transactions:
+    get:
+      tags: [Credits]
+      security: [{bearerAuth: []}]
+      summary: List credit transactions
+      parameters:
+        - in: query
+          name: page
+          schema: {type: integer}
+        - in: query
+          name: page_size
+          schema: {type: integer}
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum: [all, spend, earn]
+          description: Filter by direction; defaults to all
+      responses:
+        '200':
+          description: Credit transaction page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditTransactionPage'
         '401':
           $ref: '#/components/responses/Error401'
 
