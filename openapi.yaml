@@ -238,6 +238,24 @@ components:
     ImageMethod:
       type: string
       enum: [prompt, prompt_with_references, upload]
+    ReferenceImageInput:
+      type: object
+      description: Provide either raw data (base64) or an http(s) URL for an image reference.
+      properties:
+        name:
+          type: string
+          description: Optional filename used for storage and display.
+        content_type:
+          type: string
+          description: MIME type for the data field; inferred when omitted.
+        data:
+          type: string
+          format: byte
+          description: Base64-encoded image bytes.
+        url:
+          type: string
+          format: uri
+          description: http(s) URL to fetch the image from.
     PlotTransitionOption:
       type: object
       properties:
@@ -1026,6 +1044,7 @@ paths:
         - $ref: '#/components/parameters/SceneID'
       requestBody:
         required: false
+        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
@@ -1033,6 +1052,9 @@ paths:
               properties:
                 description_prompt: {type: string}
                 image_method: {$ref: '#/components/schemas/ImageMethod'}
+                references:
+                  type: array
+                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
           multipart/form-data:
             schema:
               type: object
@@ -1047,6 +1069,12 @@ paths:
                   items:
                     type: string
                     format: binary
+                reference_urls:
+                  type: array
+                  description: One or more http(s) URLs to fetch as references.
+                  items:
+                    type: string
+                    format: uri
       responses:
         '200':
           description: First frame images asset
@@ -1060,6 +1088,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/first-frame/images/history:
     get:
@@ -1193,12 +1223,16 @@ paths:
         - $ref: '#/components/parameters/CharacterID'
       requestBody:
         required: false
+        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
               type: object
               properties:
                 prompt: {type: string}
+                references:
+                  type: array
+                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
           multipart/form-data:
             schema:
               type: object
@@ -1209,6 +1243,12 @@ paths:
                   items:
                     type: string
                     format: binary
+                reference_urls:
+                  type: array
+                  description: One or more http(s) URLs to fetch as references.
+                  items:
+                    type: string
+                    format: uri
       responses:
         '200':
           description: Updated character images asset
@@ -1222,6 +1262,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/characters/{characterID}/images/upload:
     post:
@@ -1293,6 +1335,7 @@ paths:
         - $ref: '#/components/parameters/WorkflowID'
       requestBody:
         required: true
+        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
@@ -1302,6 +1345,9 @@ paths:
                   properties:
                     image_method: {$ref: '#/components/schemas/ImageMethod'}
                     prompt: {type: string, description: Optional prompt override when generating during creation}
+                    references:
+                      type: array
+                      items: {$ref: '#/components/schemas/ReferenceImageInput'}
           multipart/form-data:
             schema:
               type: object
@@ -1319,6 +1365,12 @@ paths:
                   items:
                     type: string
                     format: binary
+                reference_urls:
+                  type: array
+                  description: One or more http(s) URLs to fetch as references.
+                  items:
+                    type: string
+                    format: uri
               required: [character]
       responses:
         '200':
@@ -1333,6 +1385,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/characters/{characterID}:
     delete:
@@ -1413,6 +1467,7 @@ paths:
         - $ref: '#/components/parameters/SceneID'
       requestBody:
         required: false
+        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
@@ -1420,6 +1475,9 @@ paths:
               properties:
                 description_prompt: {type: string}
                 image_method: {$ref: '#/components/schemas/ImageMethod'}
+                references:
+                  type: array
+                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
           multipart/form-data:
             schema:
               type: object
@@ -1434,6 +1492,12 @@ paths:
                   items:
                     type: string
                     format: binary
+                reference_urls:
+                  type: array
+                  description: One or more http(s) URLs to fetch as references.
+                  items:
+                    type: string
+                    format: uri
       responses:
         '200':
           description: Updated scene images asset
@@ -1447,6 +1511,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos/upload:
     post:
@@ -1827,6 +1893,7 @@ paths:
         - $ref: '#/components/parameters/ChapterID'
       requestBody:
         required: true
+        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
@@ -1841,6 +1908,9 @@ paths:
                 description_prompt:
                   type: string
                   description: Required unless image_method is upload
+                references:
+                  type: array
+                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
               required: [scene, insert_index]
           multipart/form-data:
             schema:
@@ -1863,6 +1933,12 @@ paths:
                   items:
                     type: string
                     format: binary
+                reference_urls:
+                  type: array
+                  description: One or more http(s) URLs to fetch as references.
+                  items:
+                    type: string
+                    format: uri
               required: [scene, insert_index]
       responses:
         '200':
@@ -1877,6 +1953,8 @@ paths:
           $ref: '#/components/responses/Error401'
         '404':
           $ref: '#/components/responses/Error404'
+        '413':
+          $ref: '#/components/responses/Error413'
 
   /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes/{sceneID}:
     delete:
