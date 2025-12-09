@@ -538,6 +538,9 @@ components:
         origin:
           type: string
           enum: [ai, uploaded, hybrid]
+        variant:
+          type: string
+          enum: [portrait, sheet]
         references:
           type: array
           items: {$ref: '#/components/schemas/CharacterImageReference'}
