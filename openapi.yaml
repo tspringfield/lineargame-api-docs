@@ -194,19 +194,89 @@ components:
             player:
               type: integer
               description: Optional player slot; defaults to 0.
-    StoryContent:
+    StoryStructure:
       type: object
       properties:
+        act1: {type: string}
+        act2: {type: string}
+        act3: {type: string}
+    StoryOutline:
+      type: object
+      properties:
+        logline: {type: string}
+        worldbuilding: {type: string}
+        setting: {type: string}
+        core_conflict: {type: string}
+        structure: {$ref: '#/components/schemas/StoryStructure'}
+        relationships: {type: string}
+        branch_potential: {type: string}
+    CharacterPrompt:
+      type: object
+      properties:
+        id: {type: string}
+        name: {type: string}
+        portrait_prompt: {type: string}
+        sheet_prompt: {type: string}
+        ratio_portrait: {type: string}
+        ratio_sheet: {type: string}
+        number: {type: integer}
+        reference_images:
+          type: array
+          items: {type: string}
+    CharacterPromptsOutput:
+      type: object
+      properties:
+        language: {type: string}
+        characters:
+          type: array
+          items: {$ref: '#/components/schemas/CharacterPrompt'}
+    RefinedInput:
+      type: object
+      properties:
+        input_type: {type: string}
         prompt: {type: string}
+        file: {}
         language: {type: string}
         genre: {type: string}
         visual_style: {type: string}
         image_ratio: {type: string}
+        duration: {type: number}
+        number_of_shots: {type: integer}
+        batch: {type: integer}
+        must_have:
+          type: array
+          items: {type: string}
+        avoid:
+          type: array
+          items: {type: string}
+        round_index: {type: integer}
+    StoryContent:
+      type: object
+      properties:
+        input_type: {type: string}
+        prompt: {type: string}
+        file: {}
+        language: {type: string}
+        genre: {type: string}
+        visual_style: {type: string}
+        image_ratio: {type: string}
+        duration: {type: number}
+        number_of_shots: {type: integer}
+        batch: {type: integer}
+        must_have:
+          type: array
+          items: {type: string}
+        avoid:
+          type: array
+          items: {type: string}
+        round_index: {type: integer}
+        story_outline: {$ref: '#/components/schemas/StoryOutline'}
         story_summary: {type: string}
         characters:
           type: array
           items: {$ref: '#/components/schemas/StoryCharacter'}
-      required: [prompt, language, genre, visual_style, image_ratio, story_summary, characters]
+        character_prompts: {$ref: '#/components/schemas/CharacterPromptsOutput'}
+      required: [prompt, language, story_summary, characters]
     StoryReferenceFile:
       type: object
       properties:
@@ -220,15 +290,19 @@ components:
       type: object
       properties:
         idea: {type: string}
-        raw: {type: string, description: LLM raw response text}
+        modified_input_raw: {type: string}
+        story_raw: {type: string, description: LLM raw response text}
+        character_prompts_raw: {type: string}
+        modified_input: {$ref: '#/components/schemas/RefinedInput'}
         story: {$ref: '#/components/schemas/StoryContent'}
+        character_prompts: {$ref: '#/components/schemas/CharacterPromptsOutput'}
         meta:
           type: object
           properties:
             reference_files:
               type: array
               items: {$ref: '#/components/schemas/StoryReferenceFile'}
-      required: [idea, raw, story]
+      required: [idea, story_raw, story]
     ImagePromptParams:
       type: object
       properties:
@@ -277,8 +351,17 @@ components:
       type: object
       properties:
         scene_id: {type: string}
+        chapter_id: {type: string}
+        section_id: {type: string}
         short_introduction: {type: string}
         description: {type: string}
+        dialogue_or_narration:
+          type: array
+          items:
+            type: object
+            properties:
+              character: {type: string}
+              text: {type: string}
         character_ids:
           type: array
           items: {type: string}
@@ -288,6 +371,7 @@ components:
           items: {$ref: '#/components/schemas/CharacterImageReference'}
         video_motion_prompt: {type: string}
         transition_logic: {$ref: '#/components/schemas/PlotTransition'}
+        is_terminal: {type: boolean}
       required: [scene_id]
     Chapter:
       type: object
@@ -298,10 +382,135 @@ components:
           type: array
           items: {$ref: '#/components/schemas/Scene'}
       required: [id, scenes]
+    ActDistribution:
+      type: object
+      properties:
+        act1: {type: number}
+        act2: {type: number}
+        act3: {type: number}
+    ShotRange:
+      type: object
+      properties:
+        start: {type: integer}
+        end: {type: integer}
+    PlanSection:
+      type: object
+      properties:
+        section_id: {type: string}
+        order_index: {type: integer}
+        act: {type: string}
+        core_beat: {type: string}
+        detail_summary: {type: string}
+        estimated_shots: {type: integer}
+        estimated_batches: {type: integer}
+        shot_index_range: {$ref: '#/components/schemas/ShotRange'}
+        interaction_density: {type: string}
+        emotional_tone: {type: string}
+        main_locations:
+          type: array
+          items: {type: string}
+        main_characters:
+          type: array
+          items: {type: string}
+    PlanChapter:
+      type: object
+      properties:
+        chapter_id: {type: string}
+        act: {type: string}
+        title: {type: string}
+        one_sentence_summary: {type: string}
+        role_in_overall_arc: {type: string}
+        estimated_shots: {type: integer}
+        estimated_batches: {type: integer}
+        sections:
+          type: array
+          items: {$ref: '#/components/schemas/PlanSection'}
+    ChapterPlanDetails:
+      type: object
+      properties:
+        batch_size: {type: integer}
+        total_planned_shots: {type: integer}
+        total_planned_batches: {type: integer}
+        shots_per_minute: {type: number}
+        duration_minutes: {type: number}
+        assumptions_note: {type: string}
+        act_distribution: {$ref: '#/components/schemas/ActDistribution'}
+        chapters:
+          type: array
+          items: {$ref: '#/components/schemas/PlanChapter'}
+    ChapterPlanOutput:
+      type: object
+      properties:
+        story_package: {$ref: '#/components/schemas/StoryContent'}
+        batch_size: {type: integer}
+        chapter_plan: {$ref: '#/components/schemas/ChapterPlanDetails'}
+    SectionProgress:
+      type: object
+      properties:
+        estimated_shots: {type: integer}
+        generated_shots: {type: integer}
+        status: {type: string}
+        generated_scene_ids:
+          type: array
+          items: {type: string}
+        version: {type: integer}
+    StoryCursor:
+      type: object
+      properties:
+        chapter_id: {type: string}
+        section_id: {type: string}
+        approx_position: {type: number}
+        note: {type: string}
+    BranchProgress:
+      type: object
+      properties:
+        generated_scene_count: {type: integer}
+        section_progress:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SectionProgress'
+        story_cursor: {$ref: '#/components/schemas/StoryCursor'}
+        covered_summary: {type: string}
+        next_batch_hint: {type: string}
+    MultiBranchOutput:
+      type: object
+      properties:
+        next_scene_index: {type: integer}
+        progress: {$ref: '#/components/schemas/BranchProgress'}
+        scenes:
+          type: array
+          items: {$ref: '#/components/schemas/Scene'}
+    ScenePrompt:
+      type: object
+      properties:
+        scene_id: {type: string}
+        character_ids:
+          type: array
+          items: {type: string}
+        dialogue_or_narration:
+          type: array
+          items:
+            type: object
+            properties:
+              character: {type: string}
+              text: {type: string}
+        image_prompt_params: {type: string}
+        video_prompt: {type: string}
+    ScenePromptOutput:
+      type: object
+      properties:
+        scenes:
+          type: array
+          items: {$ref: '#/components/schemas/ScenePrompt'}
     PlotAssetPayload:
       type: object
       properties:
-        raw: {type: string}
+        chapter_plan_raw: {type: string}
+        script_raw: {type: string}
+        prompt_raw: {type: string}
+        chapter_plan: {$ref: '#/components/schemas/ChapterPlanOutput'}
+        script_output: {$ref: '#/components/schemas/MultiBranchOutput'}
+        prompt_output: {$ref: '#/components/schemas/ScenePromptOutput'}
         chapters:
           type: array
           items: {$ref: '#/components/schemas/Chapter'}
@@ -309,7 +518,7 @@ components:
           type: array
           items: {$ref: '#/components/schemas/Scene'}
           description: Legacy flat list; chapters is preferred.
-      required: [raw, chapters]
+      required: [chapters]
     CharacterImageReference:
       type: object
       properties:
