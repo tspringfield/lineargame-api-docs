@@ -559,6 +559,12 @@ components:
         failures:
           type: array
           items: {$ref: '#/components/schemas/CharacterImageFailure'}
+        sheet_statuses:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [pending, running, completed, failed]
+          description: Per-character status of sheet image generation
       required: [images]
     CharacterImageHistoryEntry:
       type: object
@@ -770,21 +776,28 @@ components:
           type: array
           items: {$ref: '#/components/schemas/StageSnapshot'}
       required: [workflow, stages]
-    VideoJob:
+    VideoJobEntry:
       type: object
       properties:
         id: {type: string, format: uuid}
         workflow_id: {type: string, format: uuid}
-        status: {$ref: '#/components/schemas/VideoJobStatus'}
-        scene_id: {type: string, nullable: true}
+        scene_id: {type: string}
         veo_model: {type: string}
+        status: {$ref: '#/components/schemas/VideoJobStatus'}
         queue_position: {type: integer}
         started_at: {type: string, format: date-time, nullable: true}
         completed_at: {type: string, format: date-time, nullable: true}
         result_asset_id: {type: string, format: uuid, nullable: true}
         error_message: {type: string}
+      required: [id, workflow_id, scene_id, veo_model, status, queue_position]
+    VideoJobResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items: {$ref: '#/components/schemas/VideoJobEntry'}
         credits: {$ref: '#/components/schemas/CreditUsage'}
-      required: [id, workflow_id, status, veo_model, queue_position]
+      required: [jobs]
     SelectedVersionResponse:
       type: object
       properties:
@@ -1160,6 +1173,7 @@ paths:
               type: object
               properties:
                 idea: {type: string}
+                language: {type: string}
                 workflow_id: {type: string, format: uuid}
                 story_style: {type: string}
                 visual_style: {type: string}
@@ -1171,6 +1185,7 @@ paths:
               type: object
               properties:
                 idea: {type: string}
+                language: {type: string}
                 workflow_id: {type: string, format: uuid}
                 story_style: {type: string}
                 visual_style: {type: string}
@@ -1789,11 +1804,11 @@ paths:
                   enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
         '202':
-          description: Video job queued
+          description: Video jobs queued (one per scene)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJob'
+                $ref: '#/components/schemas/VideoJobResponse'
         '400':
           $ref: '#/components/responses/Error400'
         '401':
@@ -1821,11 +1836,11 @@ paths:
                   enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
         '202':
-          description: Video job queued
+          description: Video jobs queued (one per scene)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJob'
+                $ref: '#/components/schemas/VideoJobResponse'
         '400':
           $ref: '#/components/responses/Error400'
         '401':
@@ -1955,7 +1970,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJob'
+                $ref: '#/components/schemas/VideoJobResponse'
         '401':
           $ref: '#/components/responses/Error401'
         '404':
