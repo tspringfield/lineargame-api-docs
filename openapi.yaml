@@ -535,6 +535,8 @@ components:
         url: {type: string}
         mime_type: {type: string}
         storage_key: {type: string}
+        thumbnail_url: {type: string}
+        thumbnail_storage_key: {type: string}
         origin:
           type: string
           enum: [ai, uploaded, hybrid]
@@ -589,6 +591,8 @@ components:
         prompt: {type: string}
         params: {$ref: '#/components/schemas/ImagePromptParams'}
         storage_key: {type: string}
+        thumbnail_url: {type: string}
+        thumbnail_storage_key: {type: string}
         origin:
           type: string
           enum: [ai, uploaded, hybrid]
@@ -776,28 +780,46 @@ components:
           type: array
           items: {$ref: '#/components/schemas/StageSnapshot'}
       required: [workflow, stages]
-    VideoJobEntry:
+    VideoJob:
       type: object
       properties:
         id: {type: string, format: uuid}
         workflow_id: {type: string, format: uuid}
-        scene_id: {type: string}
-        veo_model: {type: string}
         status: {$ref: '#/components/schemas/VideoJobStatus'}
+        scene_id: {type: string, nullable: true}
+        veo_model: {type: string}
         queue_position: {type: integer}
+        created_at: {type: string, format: date-time}
         started_at: {type: string, format: date-time, nullable: true}
         completed_at: {type: string, format: date-time, nullable: true}
         result_asset_id: {type: string, format: uuid, nullable: true}
         error_message: {type: string}
-      required: [id, workflow_id, scene_id, veo_model, status, queue_position]
-    VideoJobResponse:
+        credits: {$ref: '#/components/schemas/CreditUsage'}
+      required: [id, workflow_id, status, veo_model, queue_position, created_at]
+    VideoEnqueueResponse:
       type: object
       properties:
+        workflow: {$ref: '#/components/schemas/Workflow'}
         jobs:
           type: array
-          items: {$ref: '#/components/schemas/VideoJobEntry'}
-        credits: {$ref: '#/components/schemas/CreditUsage'}
-      required: [jobs]
+          items: {$ref: '#/components/schemas/VideoJob'}
+        skipped:
+          type: array
+          items: {$ref: '#/components/schemas/VideoJob'}
+        limited_scene_ids:
+          type: array
+          items: {type: string}
+        requested_scenes:
+          type: array
+          items: {type: string}
+        enqueued_scenes:
+          type: array
+          items: {type: string}
+        skipped_scene_ids:
+          type: array
+          items: {type: string}
+        requested_credits: {$ref: '#/components/schemas/CreditUsage'}
+      required: [workflow]
     SelectedVersionResponse:
       type: object
       properties:
@@ -1804,11 +1826,11 @@ paths:
                   enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
         '202':
-          description: Video jobs queued (one per scene)
+          description: Video jobs queued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJobResponse'
+                $ref: '#/components/schemas/VideoEnqueueResponse'
         '400':
           $ref: '#/components/responses/Error400'
         '401':
@@ -1836,11 +1858,11 @@ paths:
                   enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
       responses:
         '202':
-          description: Video jobs queued (one per scene)
+          description: Video jobs queued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJobResponse'
+                $ref: '#/components/schemas/VideoEnqueueResponse'
         '400':
           $ref: '#/components/responses/Error400'
         '401':
@@ -1861,6 +1883,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SceneVideosAssetResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/workflows/{workflowID}/videos/jobs:
+    get:
+      tags: [Videos]
+      security: [{bearerAuth: []}]
+      summary: List video job history for a workflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: limit
+          schema: {type: integer}
+          description: Max number of jobs to return (default 200)
+      responses:
+        '200':
+          description: Video job history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflow: {$ref: '#/components/schemas/Workflow'}
+                  jobs:
+                    type: array
+                    items: {$ref: '#/components/schemas/VideoJob'}
+                required: [workflow, jobs]
+        '400':
+          $ref: '#/components/responses/Error400'
         '401':
           $ref: '#/components/responses/Error401'
         '404':
@@ -1970,7 +2023,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJobResponse'
+                $ref: '#/components/schemas/VideoJob'
         '401':
           $ref: '#/components/responses/Error401'
         '404':
