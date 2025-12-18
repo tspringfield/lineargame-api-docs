@@ -8,6 +8,7 @@ tags:
   - name: Health
   - name: Auth
   - name: OAuth
+  - name: Admin
   - name: Payments
   - name: Webhooks
   - name: Workflows
@@ -130,6 +131,53 @@ components:
           type: integer
           description: Seconds until the access token expires
       required: [token, refresh_token, expires_at, expires_in]
+    InviteCode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          description: Invite code string
+        quota:
+          type: integer
+          description: Total number of registrations allowed
+        used_count:
+          type: integer
+          description: Number of times used
+        credits_reward:
+          type: integer
+          description: Credits to award on successful registration
+        status:
+          type: string
+          enum: [active, inactive]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, code, quota, used_count, credits_reward, status, created_at, updated_at]
+    WaitlistEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, email, status, created_at, updated_at]
     WorkflowStatus:
       type: string
       enum: [pending, active, completed, failed]
@@ -934,7 +982,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email, password]
+              required: [email, password, invite_code]
               properties:
                 email:
                   type: string
@@ -942,6 +990,9 @@ paths:
                 password:
                   type: string
                   minLength: 8
+                invite_code:
+                  type: string
+                  description: Required invite code for registration
       responses:
         '201':
           description: Auth tokens
@@ -999,6 +1050,11 @@ paths:
           name: redirect_uri
           required: true
           schema: {type: string, format: uri}
+        - in: query
+          name: invite_code
+          required: true
+          schema: {type: string}
+          description: Required invite code for new user registration
       responses:
         '302':
           description: Redirect to provider
@@ -1072,6 +1128,207 @@ paths:
                 $ref: '#/components/schemas/AuthTokens'
         '400':
           $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/waitlist:
+    post:
+      tags: [Auth]
+      summary: Join waitlist (for users without invite code)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '201':
+          description: Successfully joined waitlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: {type: string}
+                  status: {type: string, enum: [pending]}
+        '200':
+          description: Email already in waitlist
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: {type: string}
+                  status: {type: string}
+        '400':
+          $ref: '#/components/responses/Error400'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/invite-codes:
+    post:
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: Create new invite code (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, quota]
+              properties:
+                code:
+                  type: string
+                  description: Invite code string (e.g. "YOROLL001")
+                quota:
+                  type: integer
+                  minimum: 1
+                  description: Total number of registrations allowed
+                credits_reward:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                  description: Credits to award on successful registration
+      responses:
+        '201':
+          description: Invite code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+    get:
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: List all invite codes (admin only)
+      parameters:
+        - in: query
+          name: limit
+          schema: {type: integer, default: 50}
+        - in: query
+          name: offset
+          schema: {type: integer, default: 0}
+      responses:
+        '200':
+          description: List of invite codes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  codes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InviteCode'
+                  limit: {type: integer}
+                  offset: {type: integer}
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/admin/invite-codes/{inviteCodeID}:
+    get:
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: Get invite code by ID (admin only)
+      parameters:
+        - in: path
+          name: inviteCodeID
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Invite code details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+    patch:
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: Update invite code (admin only)
+      parameters:
+        - in: path
+          name: inviteCodeID
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, inactive]
+                quota:
+                  type: integer
+                  minimum: 1
+                credits_reward:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Updated invite code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/admin/waitlist:
+    get:
+      tags: [Admin]
+      security: [{bearerAuth: []}]
+      summary: List waitlist entries (admin only)
+      parameters:
+        - in: query
+          name: status
+          schema: {type: string, enum: [pending, approved, rejected]}
+        - in: query
+          name: limit
+          schema: {type: integer, default: 50}
+        - in: query
+          name: offset
+          schema: {type: integer, default: 0}
+      responses:
+        '200':
+          description: List of waitlist entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WaitlistEntry'
+                  limit: {type: integer}
+                  offset: {type: integer}
         '401':
           $ref: '#/components/responses/Error401'
 
