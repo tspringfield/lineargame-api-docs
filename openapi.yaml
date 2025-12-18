@@ -8,6 +8,8 @@ tags:
   - name: Health
   - name: Auth
   - name: OAuth
+  - name: Payments
+  - name: Webhooks
   - name: Workflows
   - name: Characters
   - name: Scenes
@@ -402,7 +404,7 @@ components:
         core_beat: {type: string}
         detail_summary: {type: string}
         estimated_shots: {type: integer}
-        estimated_batches: {type: integer}
+        estimated_batches: {type: number}
         shot_index_range: {$ref: '#/components/schemas/ShotRange'}
         interaction_density: {type: string}
         emotional_tone: {type: string}
@@ -421,7 +423,7 @@ components:
         one_sentence_summary: {type: string}
         role_in_overall_arc: {type: string}
         estimated_shots: {type: integer}
-        estimated_batches: {type: integer}
+        estimated_batches: {type: number}
         sections:
           type: array
           items: {$ref: '#/components/schemas/PlanSection'}
@@ -1115,6 +1117,116 @@ paths:
                 $ref: '#/components/schemas/CreditTransactionPage'
         '401':
           $ref: '#/components/responses/Error401'
+
+  /api/v1/payments/checkout/subscription:
+    post:
+      tags: [Payments]
+      security: [{bearerAuth: []}]
+      summary: Create Stripe checkout session for subscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tier]
+              properties:
+                tier:
+                  $ref: '#/components/schemas/SubscriptionTier'
+                  description: Subscription tier to purchase (pro or ultra)
+                success_url:
+                  type: string
+                  format: uri
+                  description: URL to redirect to after successful payment
+                cancel_url:
+                  type: string
+                  format: uri
+                  description: URL to redirect to if payment is cancelled
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout_url:
+                    type: string
+                    format: uri
+                    description: Stripe checkout URL to redirect user to
+                required: [checkout_url]
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/payments/checkout/topup:
+    post:
+      tags: [Payments]
+      security: [{bearerAuth: []}]
+      summary: Create Stripe checkout session for credit top-up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: integer
+                  description: Number of credits to purchase
+                success_url:
+                  type: string
+                  format: uri
+                  description: URL to redirect to after successful payment
+                cancel_url:
+                  type: string
+                  format: uri
+                  description: URL to redirect to if payment is cancelled
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  checkout_url:
+                    type: string
+                    format: uri
+                    description: Stripe checkout URL to redirect user to
+                required: [checkout_url]
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/webhooks/stripe:
+    post:
+      tags: [Webhooks]
+      summary: Stripe webhook handler
+      description: Handles Stripe webhook events (checkout.session.completed, etc.). Requires Stripe signature verification.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe webhook event payload
+      responses:
+        '200':
+          description: Webhook processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/Error400'
 
   /api/v1/mock/users/{userID}/subscription:
     post:
