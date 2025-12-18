@@ -1132,16 +1132,9 @@ paths:
               required: [tier]
               properties:
                 tier:
-                  $ref: '#/components/schemas/SubscriptionTier'
-                  description: Subscription tier to purchase (pro or ultra)
-                success_url:
                   type: string
-                  format: uri
-                  description: URL to redirect to after successful payment
-                cancel_url:
-                  type: string
-                  format: uri
-                  description: URL to redirect to if payment is cancelled
+                  enum: [pro, ultra]
+                  description: Subscription tier to purchase
       responses:
         '200':
           description: Checkout session created
@@ -1159,31 +1152,31 @@ paths:
           $ref: '#/components/responses/Error400'
         '401':
           $ref: '#/components/responses/Error401'
+        '503':
+          description: Payment service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/payments/checkout/topup:
     post:
       tags: [Payments]
       security: [{bearerAuth: []}]
       summary: Create Stripe checkout session for credit top-up
+      description: Purchase credit packages (small=100 credits/$10, medium=1000 credits/$90, large=5000 credits/$400)
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [amount]
+              required: [package]
               properties:
-                amount:
-                  type: integer
-                  description: Number of credits to purchase
-                success_url:
+                package:
                   type: string
-                  format: uri
-                  description: URL to redirect to after successful payment
-                cancel_url:
-                  type: string
-                  format: uri
-                  description: URL to redirect to if payment is cancelled
+                  enum: [small, medium, large]
+                  description: Credit package size (small=100 credits/$10, medium=1000 credits/$90, large=5000 credits/$400)
       responses:
         '200':
           description: Checkout session created
@@ -1201,6 +1194,12 @@ paths:
           $ref: '#/components/responses/Error400'
         '401':
           $ref: '#/components/responses/Error401'
+        '503':
+          description: Payment service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /api/v1/webhooks/stripe:
     post:
