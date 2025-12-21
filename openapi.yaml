@@ -2584,12 +2584,17 @@ paths:
       tags: [Videos]
       security: [{bearerAuth: []}]
       summary: List video job history for a workflow
+      description: Jobs are returned in descending created_at order (newest first).
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - in: query
           name: limit
           schema: {type: integer}
           description: Max number of jobs to return (default 200)
+        - in: query
+          name: scene_id
+          schema: {type: string}
+          description: Optional scene ID to filter jobs
       responses:
         '200':
           description: Video job history
