@@ -1162,6 +1162,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - Assets
+      summary: Get plot asset
+      description: Retrieve plot asset for workflow
+      operationId: getPlotAsset
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /workflows/{workflowID}/characters/images:
     post:
@@ -2164,35 +2191,6 @@ paths:
       summary: Get story asset
       description: Retrieve story asset for workflow
       operationId: getStoryAsset
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - in: query
-          name: version
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Asset retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowAsset'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /workflows/{workflowID}/plot:
-    get:
-      tags:
-        - Assets
-      summary: Get plot asset
-      description: Retrieve plot asset for workflow
-      operationId: getPlotAsset
       security:
         - bearerAuth: []
       parameters:
