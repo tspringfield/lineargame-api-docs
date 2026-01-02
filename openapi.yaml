@@ -1,31 +1,54 @@
 openapi: 3.1.0
 info:
   title: Linear Game Backend API
+  description: API for Linear Game platform - story generation and workflow management
   version: 1.0.0
+  contact:
+    name: API Support
 servers:
   - url: https://api.example.com
+    description: Production server
+  - url: http://localhost:8080
+    description: Development server
+
 tags:
   - name: Health
+    description: Health check endpoints
   - name: Auth
+    description: Authentication and user management
   - name: OAuth
-  - name: Admin
-  - name: Debug
-  - name: Payments
-  - name: Webhooks
+    description: OAuth authentication
   - name: Workflows
+    description: Workflow management
   - name: Characters
+    description: Character image generation
   - name: Scenes
+    description: Scene image and video management
   - name: Videos
+    description: Video generation and management
   - name: Assets
-  - name: Metadata
+    description: Asset version management
   - name: Credits
+    description: Credit balance and transactions
+  - name: Payments
+    description: Payment and subscription management
+  - name: Webhooks
+    description: External webhook handlers
+  - name: Admin
+    description: Administrative endpoints
+  - name: Debug
+    description: Debugging utilities
   - name: Mock
+    description: Mock endpoints for testing
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT token for authentication
+
   parameters:
     WorkflowID:
       in: path
@@ -34,50 +57,65 @@ components:
       schema:
         type: string
         format: uuid
+      description: Unique workflow identifier
+
     CharacterID:
       in: path
       name: characterID
       required: true
       schema:
         type: string
+      description: Character identifier
+
     SceneID:
       in: path
       name: sceneID
       required: true
       schema:
         type: string
+      description: Scene identifier
+
     ChapterID:
       in: path
       name: chapterID
       required: true
       schema:
         type: string
-    VersionQuery:
-      in: query
-      name: version
-      schema:
-        type: integer
-      description: Specific asset version to fetch; defaults to the latest or selected pointer.
-    AsyncQuery:
-      in: query
-      name: async
-      schema:
-        type: boolean
-      description: Return 202 Accepted and run work asynchronously when true.
-    PreferAsync:
-      in: header
-      name: Prefer
-      schema:
-        type: string
-        enum: ["respond-async"]
-      description: Alternative to `async=1`; returns 202 Accepted and processes in the background.
-    AssetTypeSelectable:
+      description: Chapter identifier
+
+    AssetType:
       in: path
       name: assetType
       required: true
       schema:
         type: string
-        enum: [story, character_images, scene_images, first_frame_images, videos]
+        enum:
+          - story
+          - plot
+          - character_images
+          - scene_images
+          - first_frame_images
+          - videos
+          - publish
+      description: Type of workflow asset
+
+    UserID:
+      in: path
+      name: userID
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: User identifier
+
+    SessionID:
+      in: path
+      name: sessionID
+      required: true
+      schema:
+        type: string
+      description: Checkout session identifier
+
     JobID:
       in: path
       name: jobID
@@ -85,53 +123,412 @@ components:
       schema:
         type: string
         format: uuid
-  responses:
-    Error400:
-      description: Bad request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error401:
-      description: Unauthorized or missing token
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error404:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-    Error413:
-      description: Payload too large
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
+      description: Video job identifier
+
+    InviteCodeID:
+      in: path
+      name: inviteCodeID
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Invite code identifier
+
+    Limit:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Maximum number of items to return
+
+    Offset:
+      in: query
+      name: offset
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Number of items to skip
+
+    Cursor:
+      in: query
+      name: cursor
+      schema:
+        type: string
+      description: Pagination cursor for next page
+
   schemas:
     Error:
       type: object
+      required:
+        - error
       properties:
         error:
           type: string
-      required: [error]
-    AuthTokens:
+          description: Error message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        google_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        invite_code:
+          type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
       type: object
       properties:
         token:
           type: string
-          description: Access token (Bearer JWT)
         refresh_token:
           type: string
-        expires_at:
+        user:
+          $ref: '#/components/schemas/User'
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+
+    WaitlistRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    WorkflowStatus:
+      type: string
+      enum:
+        - pending
+        - active
+        - completed
+        - failed
+
+    StageStatus:
+      type: string
+      enum:
+        - pending
+        - in_progress
+        - completed
+        - failed
+
+    AssetTypeEnum:
+      type: string
+      enum:
+        - story
+        - plot
+        - character_images
+        - scene_images
+        - first_frame_images
+        - videos
+        - publish
+
+    Workflow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        idea:
+          type: string
+        status:
+          $ref: '#/components/schemas/WorkflowStatus'
+        current_stage:
+          $ref: '#/components/schemas/AssetTypeEnum'
+        stage_detail:
+          type: object
+          additionalProperties: true
+        created_at:
           type: string
           format: date-time
-        expires_in:
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkflowAsset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflow_id:
+          type: string
+          format: uuid
+        asset_type:
+          $ref: '#/components/schemas/AssetTypeEnum'
+        version:
           type: integer
-          description: Seconds until the access token expires
-      required: [token, refresh_token, expires_at, expires_in]
+        status:
+          $ref: '#/components/schemas/StageStatus'
+        summary:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StoryRequest:
+      type: object
+      required:
+        - idea
+      properties:
+        idea:
+          type: string
+          description: Story idea or prompt
+
+    VideoJobStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - completed
+        - failed
+
+    VideoJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        workflow_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/VideoJobStatus'
+        scene_id:
+          type: string
+          nullable: true
+        allowed_scenes:
+          type: array
+          items:
+            type: object
+        requested_scenes:
+          type: array
+          items:
+            type: object
+        charges:
+          type: array
+          items:
+            type: object
+        charged_amount:
+          type: integer
+        veo_model:
+          type: string
+          description: Video model (Veo or Sora).
+          enum:
+            - veo-3.1-fast-generate-preview
+            - veo-3.1-generate-preview
+            - sora-2
+            - sora-2-pro
+        error_message:
+          type: string
+        result_asset:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    SubscriptionTier:
+      type: string
+      enum:
+        - free
+        - pro
+        - ultra
+
+    CreditTransactionDirection:
+      type: string
+      enum:
+        - earn
+        - spend
+        - expire
+        - refund
+
+    CreditTransactionType:
+      type: string
+      enum:
+        - subscription
+        - top_up
+        - scene_image
+        - character_image
+        - first_frame
+        - video
+        - refund
+        - expire
+
+    CreditTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        direction:
+          $ref: '#/components/schemas/CreditTransactionDirection'
+        type:
+          $ref: '#/components/schemas/CreditTransactionType'
+        amount:
+          type: integer
+        running_balance_after:
+          type: integer
+        description:
+          type: string
+        workflow_id:
+          type: string
+          format: uuid
+          nullable: true
+        bucket_source:
+          type: string
+        subscription_tier:
+          $ref: '#/components/schemas/SubscriptionTier'
+          nullable: true
+        occurred_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    CreditsResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        monthly:
+          type: integer
+        event:
+          type: integer
+        top_up:
+          type: integer
+
+    CreditTransactionsResponse:
+      type: object
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreditTransaction'
+        cursor:
+          type: string
+          nullable: true
+        page:
+          type: integer
+        page_size:
+          type: integer
+        has_more:
+          type: boolean
+
+    SubscriptionCheckoutRequest:
+      type: object
+      required:
+        - plan_key
+      properties:
+        plan_key:
+          type: string
+          enum:
+            - pro_monthly
+            - pro_annual
+            - ultra_monthly
+            - ultra_annual
+
+    TopUpCheckoutRequest:
+      type: object
+      required:
+        - package_key
+      properties:
+        package_key:
+          type: string
+          enum:
+            - small
+            - medium
+            - large
+
+    CheckoutResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        checkout_url:
+          type: string
+
+    InviteCodeStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+
     InviteCode:
       type: object
       properties:
@@ -140,27 +537,146 @@ components:
           format: uuid
         code:
           type: string
-          description: Invite code string
         quota:
           type: integer
-          description: Total number of registrations allowed
         used_count:
           type: integer
-          description: Number of times used
         credits_reward:
           type: integer
-          description: Credits to award on successful registration
         status:
-          type: string
-          enum: [active, inactive]
+          $ref: '#/components/schemas/InviteCodeStatus'
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
-      required: [id, code, quota, used_count, credits_reward, status, created_at, updated_at]
-    WaitlistEntry:
+
+    CreateInviteCodeRequest:
+      type: object
+      required:
+        - code
+        - quota
+      properties:
+        code:
+          type: string
+        quota:
+          type: integer
+        credits_reward:
+          type: integer
+        status:
+          $ref: '#/components/schemas/InviteCodeStatus'
+
+    UpdateInviteCodeRequest:
+      type: object
+      properties:
+        quota:
+          type: integer
+        credits_reward:
+          type: integer
+        status:
+          $ref: '#/components/schemas/InviteCodeStatus'
+
+    TransitionOption:
+      type: object
+      required:
+        - text
+        - next_scene
+      properties:
+        text:
+          type: string
+          description: Option text displayed to user
+        next_scene:
+          type: string
+          description: Scene ID to transition to
+
+    TransitionDetails:
+      type: object
+      properties:
+        next_scene:
+          type: string
+          description: Natural next scene for linear progression
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransitionOption'
+          description: Branching options for non-linear transitions
+
+    TransitionLogic:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Type of transition (e.g., linear, branching)
+        details:
+          $ref: '#/components/schemas/TransitionDetails'
+
+    ImagePromptPatch:
+      type: object
+      properties:
+        description_prompt:
+          type: string
+          description: Image generation description prompt
+        visual_style:
+          type: string
+          description: Visual style for the image
+        ratio:
+          type: string
+          description: Image aspect ratio
+
+    QTEPatch:
+      type: object
+      properties:
+        type:
+          type: string
+          description: QTE type
+        next_node_map:
+          type: object
+          additionalProperties:
+            type: string
+          description: Map of QTE outcomes to next scene IDs (keys must be "1", "-1", or "-2")
+          example:
+            "1": "scene_success"
+            "-1": "scene_failure"
+            "-2": "scene_timeout"
+
+    ScenePatchRequest:
+      type: object
+      properties:
+        scene_id:
+          type: string
+          description: Scene identifier
+        short_introduction:
+          type: string
+          description: Brief introduction text for the scene
+        description:
+          type: string
+          description: Detailed scene description
+        image_prompt_params:
+          $ref: '#/components/schemas/ImagePromptPatch'
+        video_motion_prompt:
+          type: string
+          description: Motion prompt for video generation
+        transition_logic:
+          $ref: '#/components/schemas/TransitionLogic'
+        character_ids:
+          type: array
+          items:
+            type: string
+          description: List of character IDs present in the scene
+        qte:
+          $ref: '#/components/schemas/QTEPatch'
+
+    WaitlistStatus:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+
+    Waitlist:
       type: object
       properties:
         id:
@@ -170,2022 +686,571 @@ components:
           type: string
           format: email
         status:
-          type: string
-          enum: [pending, approved, rejected]
+          $ref: '#/components/schemas/WaitlistStatus'
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
-      required: [id, email, status, created_at, updated_at]
-    TextLLMDebugDefaults:
-      type: object
-      properties:
-        default_provider:
-          type: string
-          enum: [openai, gemini]
-        temperature:
-          type: number
-        top_p:
-          type: number
-        openai:
-          type: object
-          properties:
-            enabled: {type: boolean}
-            base_url: {type: string}
-            model: {type: string}
-            temperature: {type: number}
-            top_p: {type: number}
-            stream: {type: boolean}
-            response_format:
-              type: string
-              enum: [json_object]
-          required: [enabled, base_url, model, temperature, top_p, stream, response_format]
-        gemini:
-          type: object
-          properties:
-            enabled: {type: boolean}
-            model: {type: string}
-            temperature: {type: number}
-            top_p: {type: number}
-            max_output_tokens: {type: integer}
-            response_mime_type:
-              type: string
-              enum: [application/json]
-          required: [enabled, model, temperature, top_p, max_output_tokens, response_mime_type]
-        notes:
-          type: object
-          additionalProperties:
-            type: string
-      required: [default_provider, temperature, top_p, openai, gemini]
-    TextLLMDebugInvokeRequest:
-      type: object
-      properties:
-        provider:
-          type: string
-          enum: [openai, gemini]
-          description: Which LLM provider to use; defaults to the backend's configured provider when omitted.
-        system_prompt:
-          type: string
-        user_prompt:
-          type: string
-      required: [user_prompt]
-    TextLLMDebugInvokeResponse:
-      type: object
-      properties:
-        provider:
-          type: string
-          enum: [openai, gemini]
-        model:
-          type: string
-        duration_ms:
-          type: integer
-        response:
-          type: string
-        response_json:
-          type: object
-          additionalProperties: true
-      required: [provider, model, duration_ms, response]
-    TextLLMDebugHistoryEntry:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        started_at:
-          type: string
-          format: date-time
-        provider:
-          type: string
-          enum: [openai, gemini, vertex, unknown]
-        model:
-          type: string
-        params:
-          type: object
-          additionalProperties: true
-        system_prompt:
-          type: string
-        user_prompt:
-          type: string
-        response:
-          type: object
-          additionalProperties: true
-        duration_ms:
-          type: integer
-        status:
-          type: string
-        status_code:
-          type: integer
-        error:
-          type: string
-      required: [id, started_at, provider, model, params, system_prompt, user_prompt, duration_ms, status, status_code]
-    TextLLMDebugHistoryResponse:
-      type: object
-      properties:
-        invocations:
-          type: array
-          items:
-            $ref: '#/components/schemas/TextLLMDebugHistoryEntry'
-        limit: {type: integer}
-        offset: {type: integer}
-        total: {type: integer}
-      required: [invocations, limit, offset, total]
-    WorkflowStatus:
-      type: string
-      enum: [pending, active, completed, failed]
-    StageStatus:
-      type: string
-      enum: [pending, in_progress, completed, failed]
-    AssetType:
-      type: string
-      enum: [story, plot, character_images, scene_images, first_frame_images, videos, publish]
-    VideoJobStatus:
-      type: string
-      enum: [queued, running, completed, failed]
-    StageDetail:
-      type: object
-      additionalProperties: true
-      description: |
-        Stage metadata recorded on a workflow. Common keys include: active_stage, message, error, story_version, plot_version, character_images_version, scene_images_version, first_frame_images_version, videos_version, publish_version, selected_versions, story_files, queue_position, scene_id, current_video_job_id, video_status.
-    Workflow:
-      type: object
-      properties:
-        id: {type: string, format: uuid}
-        idea: {type: string}
-        status: {$ref: '#/components/schemas/WorkflowStatus'}
-        current_stage: {$ref: '#/components/schemas/AssetType'}
-        stage_detail: {$ref: '#/components/schemas/StageDetail'}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-      required: [id, idea, status, current_stage, created_at, updated_at]
-    WorkflowAsset:
-      type: object
-      properties:
-        type: {$ref: '#/components/schemas/AssetType'}
-        version: {type: integer}
-        status: {$ref: '#/components/schemas/StageStatus'}
-        summary: {type: string}
-        updated_at: {type: string, format: date-time}
-      required: [type, version, status, updated_at]
-    AssetEnvelope:
-      type: object
-      properties:
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        asset: {$ref: '#/components/schemas/WorkflowAsset'}
-        credits: {$ref: '#/components/schemas/CreditUsage'}
-      required: [workflow, asset]
-    StoryCharacter:
-      type: object
-      properties:
-        id: {type: string}
-        name: {type: string}
-        role_type: {type: string}
-        player: {type: integer}
-        profession: {type: string}
-        profile: {type: string}
-        image_prompt:
-          type: string
-          description: Required unless image_method is upload
-        voice: {type: string}
-    CharacterInput:
-      allOf:
-        - $ref: '#/components/schemas/StoryCharacter'
-        - type: object
-          required: [name, profile]
-          properties:
-            player:
-              type: integer
-              description: Optional player slot; defaults to 0.
-    StoryStructure:
-      type: object
-      properties:
-        act1: {type: string}
-        act2: {type: string}
-        act3: {type: string}
-    StoryOutline:
-      type: object
-      properties:
-        logline: {type: string}
-        worldbuilding: {type: string}
-        setting: {type: string}
-        core_conflict: {type: string}
-        structure: {$ref: '#/components/schemas/StoryStructure'}
-        relationships: {type: string}
-        branch_potential: {type: string}
-    CharacterPrompt:
-      type: object
-      properties:
-        id: {type: string}
-        name: {type: string}
-        portrait_prompt: {type: string}
-        sheet_prompt: {type: string}
-        ratio_portrait: {type: string}
-        ratio_sheet: {type: string}
-        number: {type: integer}
-        reference_images:
-          type: array
-          items: {type: string}
-    CharacterPromptsOutput:
-      type: object
-      properties:
-        language: {type: string}
-        characters:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterPrompt'}
-    RefinedInput:
-      type: object
-      properties:
-        input_type: {type: string}
-        prompt: {type: string}
-        file: {}
-        language: {type: string}
-        genre: {type: string}
-        visual_style: {type: string}
-        image_ratio: {type: string}
-        duration: {type: number}
-        number_of_shots: {type: integer}
-        batch: {type: integer}
-        must_have:
-          type: array
-          items: {type: string}
-        avoid:
-          type: array
-          items: {type: string}
-        round_index: {type: integer}
-    StoryContent:
-      type: object
-      properties:
-        input_type: {type: string}
-        prompt: {type: string}
-        file: {}
-        language: {type: string}
-        genre: {type: string}
-        visual_style: {type: string}
-        image_ratio: {type: string}
-        duration: {type: number}
-        number_of_shots: {type: integer}
-        batch: {type: integer}
-        must_have:
-          type: array
-          items: {type: string}
-        avoid:
-          type: array
-          items: {type: string}
-        round_index: {type: integer}
-        story_outline: {$ref: '#/components/schemas/StoryOutline'}
-        story_summary: {type: string}
-        characters:
-          type: array
-          items: {$ref: '#/components/schemas/StoryCharacter'}
-        character_prompts: {$ref: '#/components/schemas/CharacterPromptsOutput'}
-      required: [prompt, language, story_summary, characters]
-    StoryReferenceFile:
-      type: object
-      properties:
-        name: {type: string}
-        storage_key: {type: string}
-        url: {type: string}
-        content_type: {type: string}
-        size: {type: integer}
-        openai_file_id: {type: string}
-    StoryAssetPayload:
-      type: object
-      properties:
-        idea: {type: string}
-        modified_input_raw: {type: string}
-        story_raw: {type: string, description: LLM raw response text}
-        character_prompts_raw: {type: string}
-        modified_input: {$ref: '#/components/schemas/RefinedInput'}
-        story: {$ref: '#/components/schemas/StoryContent'}
-        character_prompts: {$ref: '#/components/schemas/CharacterPromptsOutput'}
-        meta:
-          type: object
-          properties:
-            reference_files:
-              type: array
-              items: {$ref: '#/components/schemas/StoryReferenceFile'}
-      required: [idea, story_raw, story]
-    ImagePromptParams:
-      type: object
-      properties:
-        description_prompt: {type: string}
-        visual_style: {type: string}
-        ratio: {type: string}
-    ImageMethod:
-      type: string
-      enum: [prompt, prompt_with_references, upload]
-    ReferenceImageInput:
-      type: object
-      description: Provide either raw data (base64) or an http(s) URL for an image reference.
-      properties:
-        name:
-          type: string
-          description: Optional filename used for storage and display.
-        content_type:
-          type: string
-          description: MIME type for the data field; inferred when omitted.
-        data:
-          type: string
-          format: byte
-          description: Base64-encoded image bytes.
-        url:
-          type: string
-          format: uri
-          description: http(s) URL to fetch the image from.
-    PlotTransitionOption:
-      type: object
-      properties:
-        text: {type: string}
-        next_scene: {type: string}
-    PlotTransitionDetails:
-      type: object
-      properties:
-        next_scene: {type: string}
-        options:
-          type: array
-          items: {$ref: '#/components/schemas/PlotTransitionOption'}
-    PlotTransition:
-      type: object
-      properties:
-        type: {type: string}
-        details: {$ref: '#/components/schemas/PlotTransitionDetails'}
-    Scene:
-      type: object
-      properties:
-        scene_id: {type: string}
-        chapter_id: {type: string}
-        section_id: {type: string}
-        short_introduction: {type: string}
-        description: {type: string}
-        dialogue_or_narration:
-          type: array
-          items:
-            type: object
-            properties:
-              character: {type: string}
-              text: {type: string}
-        character_ids:
-          type: array
-          items: {type: string}
-        image_prompt_params: {$ref: '#/components/schemas/ImagePromptParams'}
-        reference_images:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImageReference'}
-        video_motion_prompt: {type: string}
-        transition_logic: {$ref: '#/components/schemas/PlotTransition'}
-        is_terminal: {type: boolean}
-      required: [scene_id]
-    Chapter:
-      type: object
-      properties:
-        id: {type: string}
-        title: {type: string}
-        scenes:
-          type: array
-          items: {$ref: '#/components/schemas/Scene'}
-      required: [id, scenes]
-    ActDistribution:
-      type: object
-      properties:
-        act1: {type: number}
-        act2: {type: number}
-        act3: {type: number}
-    ShotRange:
-      type: object
-      properties:
-        start: {type: integer}
-        end: {type: integer}
-    PlanSection:
-      type: object
-      properties:
-        section_id: {type: string}
-        order_index: {type: integer}
-        act: {type: string}
-        core_beat: {type: string}
-        detail_summary: {type: string}
-        estimated_shots: {type: integer}
-        estimated_batches: {type: number}
-        shot_index_range: {$ref: '#/components/schemas/ShotRange'}
-        interaction_density: {type: string}
-        emotional_tone: {type: string}
-        main_locations:
-          type: array
-          items: {type: string}
-        main_characters:
-          type: array
-          items: {type: string}
-    PlanChapter:
-      type: object
-      properties:
-        chapter_id: {type: string}
-        act: {type: string}
-        title: {type: string}
-        one_sentence_summary: {type: string}
-        role_in_overall_arc: {type: string}
-        estimated_shots: {type: integer}
-        estimated_batches: {type: number}
-        sections:
-          type: array
-          items: {$ref: '#/components/schemas/PlanSection'}
-    ChapterPlanDetails:
-      type: object
-      properties:
-        batch_size: {type: integer}
-        total_planned_shots: {type: integer}
-        total_planned_batches: {type: integer}
-        shots_per_minute: {type: number}
-        duration_minutes: {type: number}
-        assumptions_note: {type: string}
-        act_distribution: {$ref: '#/components/schemas/ActDistribution'}
-        chapters:
-          type: array
-          items: {$ref: '#/components/schemas/PlanChapter'}
-    ChapterPlanOutput:
-      type: object
-      properties:
-        story_package: {$ref: '#/components/schemas/StoryContent'}
-        batch_size: {type: integer}
-        chapter_plan: {$ref: '#/components/schemas/ChapterPlanDetails'}
-    SectionProgress:
-      type: object
-      properties:
-        estimated_shots: {type: integer}
-        generated_shots: {type: integer}
-        status: {type: string}
-        generated_scene_ids:
-          type: array
-          items: {type: string}
-        version: {type: integer}
-    StoryCursor:
-      type: object
-      properties:
-        chapter_id: {type: string}
-        section_id: {type: string}
-        approx_position: {type: number}
-        note: {type: string}
-    BranchProgress:
-      type: object
-      properties:
-        generated_scene_count: {type: integer}
-        section_progress:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/SectionProgress'
-        story_cursor: {$ref: '#/components/schemas/StoryCursor'}
-        covered_summary: {type: string}
-        next_batch_hint: {type: string}
-    MultiBranchOutput:
-      type: object
-      properties:
-        next_scene_index: {type: integer}
-        progress: {$ref: '#/components/schemas/BranchProgress'}
-        scenes:
-          type: array
-          items: {$ref: '#/components/schemas/Scene'}
-    ScenePrompt:
-      type: object
-      properties:
-        scene_id: {type: string}
-        character_ids:
-          type: array
-          items: {type: string}
-        dialogue_or_narration:
-          type: array
-          items:
-            type: object
-            properties:
-              character: {type: string}
-              text: {type: string}
-        image_prompt_params: {type: string}
-        video_prompt: {type: string}
-    ScenePromptOutput:
-      type: object
-      properties:
-        scenes:
-          type: array
-          items: {$ref: '#/components/schemas/ScenePrompt'}
-    PlotAssetPayload:
-      type: object
-      properties:
-        chapter_plan_raw: {type: string}
-        script_raw: {type: string}
-        prompt_raw: {type: string}
-        chapter_plan: {$ref: '#/components/schemas/ChapterPlanOutput'}
-        script_output: {$ref: '#/components/schemas/MultiBranchOutput'}
-        prompt_output: {$ref: '#/components/schemas/ScenePromptOutput'}
-        chapters:
-          type: array
-          items: {$ref: '#/components/schemas/Chapter'}
-        scenes:
-          type: array
-          items: {$ref: '#/components/schemas/Scene'}
-          description: Legacy flat list; chapters is preferred.
-      required: [chapters]
-    CharacterImageReference:
-      type: object
-      properties:
-        name: {type: string}
-        url: {type: string}
-        mime_type: {type: string}
-        storage_key: {type: string}
-    CharacterImage:
-      type: object
-      properties:
-        character_id: {type: string}
-        name: {type: string}
-        prompt: {type: string}
-        url: {type: string}
-        mime_type: {type: string}
-        storage_key: {type: string}
-        thumbnail_url: {type: string}
-        thumbnail_storage_key: {type: string}
-        origin:
-          type: string
-          enum: [ai, uploaded, hybrid]
-        variant:
-          type: string
-          enum: [portrait, sheet]
-        references:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImageReference'}
-    CharacterImageFailure:
-      type: object
-      properties:
-        character_id: {type: string}
-        name: {type: string}
-        error: {type: string}
-    CharacterImagesPayload:
-      type: object
-      properties:
-        images:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImage'}
-        failures:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImageFailure'}
-        sheet_statuses:
-          type: object
-          additionalProperties:
-            type: string
-            enum: [pending, running, completed, failed]
-          description: Per-character status of sheet image generation
-      required: [images]
-    CharacterImageHistoryEntry:
-      type: object
-      properties:
-        version: {type: integer}
-        created_at: {type: string, format: date-time}
-        image: {$ref: '#/components/schemas/CharacterImage'}
-      required: [version, created_at, image]
-    CharacterImageHistoryResponse:
-      type: object
-      properties:
-        entries:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImageHistoryEntry'}
-        next_cursor: {type: integer}
-    SceneImage:
-      type: object
-      properties:
-        scene_id: {type: string}
-        url: {type: string}
-        mime_type: {type: string}
-        prompt: {type: string}
-        params: {$ref: '#/components/schemas/ImagePromptParams'}
-        storage_key: {type: string}
-        thumbnail_url: {type: string}
-        thumbnail_storage_key: {type: string}
-        origin:
-          type: string
-          enum: [ai, uploaded, hybrid]
-        references:
-          type: array
-          items: {$ref: '#/components/schemas/CharacterImageReference'}
-    SceneImagesPayload:
-      type: object
-      properties:
-        images:
-          type: array
-          items: {$ref: '#/components/schemas/SceneImage'}
-      required: [images]
-    SceneImageHistoryEntry:
-      type: object
-      properties:
-        version: {type: integer}
-        created_at: {type: string, format: date-time}
-        image: {$ref: '#/components/schemas/SceneImage'}
-      required: [version, created_at, image]
-    SceneImageHistoryResponse:
-      type: object
-      properties:
-        entries:
-          type: array
-          items: {$ref: '#/components/schemas/SceneImageHistoryEntry'}
-        next_cursor: {type: integer}
-    SceneVideo:
-      type: object
-      properties:
-        scene_id: {type: string}
-        url: {type: string}
-        download_url: {type: string}
-        mime_type: {type: string}
-        prompt: {type: string}
-        storage_key: {type: string}
-        scene_image_version: {type: integer}
-        first_frame_image_version: {type: integer}
-        out_of_sync: {type: boolean}
-    SceneVideoHistoryEntry:
-      type: object
-      properties:
-        version: {type: integer}
-        created_at: {type: string, format: date-time}
-        video: {$ref: '#/components/schemas/SceneVideo'}
-      required: [version, created_at, video]
-    SceneVideoHistoryResponse:
-      type: object
-      properties:
-        entries:
-          type: array
-          items: {$ref: '#/components/schemas/SceneVideoHistoryEntry'}
-        next_cursor: {type: integer}
-    SceneVideoFailure:
-      type: object
-      properties:
-        scene_id: {type: string}
-        prompt: {type: string}
-        error: {type: string}
-    SceneVideosPayload:
-      type: object
-      properties:
-        videos:
-          type: array
-          items: {$ref: '#/components/schemas/SceneVideo'}
-        failures:
-          type: array
-          items: {$ref: '#/components/schemas/SceneVideoFailure'}
-      required: [videos]
-    PublishAssetPayload:
-      type: object
-      properties:
-        game_config_url: {type: string}
-        cdn_base: {type: string}
-        start_scene_id: {type: string}
-        nodes_count: {type: integer}
-        game_name: {type: string}
-        game_picture:
-          type: string
-          description: URL returned from the publish cover upload for this workflow
-        game_genre:
-          type: string
-          description: Optional genre label
-        viewer_url: {type: string}
-      required: [game_config_url, cdn_base, start_scene_id, nodes_count, game_name]
-    PublishCover:
-      type: object
-      properties:
-        key: {type: string}
-        url: {type: string}
-        content_type: {type: string}
-        size:
-          type: integer
-          format: int64
-          description: Size in bytes
-      required: [key, url, content_type, size]
-    VersionItem:
-      type: object
-      properties:
-        id: {type: string, format: uuid}
-        version: {type: integer}
-        status: {$ref: '#/components/schemas/StageStatus'}
-        summary: {type: string}
-        asset_type: {$ref: '#/components/schemas/AssetType'}
-        created_at: {type: string, format: date-time}
-        updated_at: {type: string, format: date-time}
-      required: [id, version, status, asset_type, updated_at]
-    VersionPointer:
-      type: object
-      properties:
-        versions:
-          type: array
-          items: {$ref: '#/components/schemas/VersionItem'}
-        selected_version:
-          type: integer
-          nullable: true
-      required: [versions]
-    StageSnapshot:
-      type: object
-      properties:
-        asset_type: {$ref: '#/components/schemas/AssetType'}
-        version: {type: integer}
-        status: {$ref: '#/components/schemas/StageStatus'}
-        summary: {type: string}
-        updated_at: {type: string, format: date-time}
-      required: [asset_type, status]
-    StageAcceptedResponse:
-      type: object
-      properties:
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        stage:
-          type: object
-          properties:
-            type: {$ref: '#/components/schemas/AssetType'}
-            status: {$ref: '#/components/schemas/StageStatus'}
-          required: [type, status]
-      required: [workflow, stage]
-    StoryAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/StoryAssetPayload'}
-          required: [payload]
-    PlotAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/PlotAssetPayload'}
-          required: [payload]
-    CharacterImagesAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/CharacterImagesPayload'}
-          required: [payload]
-    SceneImagesAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/SceneImagesPayload'}
-          required: [payload]
-    SceneVideosAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/SceneVideosPayload'}
-          required: [payload]
-    PublishAssetResponse:
-      allOf:
-        - $ref: '#/components/schemas/AssetEnvelope'
-        - type: object
-          properties:
-            payload: {$ref: '#/components/schemas/PublishAssetPayload'}
-          required: [payload]
-    PublishCoverResponse:
-      type: object
-      properties:
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        cover: {$ref: '#/components/schemas/PublishCover'}
-      required: [workflow, cover]
+
     WorkflowListResponse:
       type: object
       properties:
         workflows:
           type: array
-          items: {$ref: '#/components/schemas/Workflow'}
-        next_cursor: {type: string}
-      required: [workflows]
-    WorkflowStatusResponse:
-      type: object
-      properties:
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        stages:
-          type: array
-          items: {$ref: '#/components/schemas/StageSnapshot'}
-      required: [workflow, stages]
-    VideoJob:
-      type: object
-      properties:
-        id: {type: string, format: uuid}
-        workflow_id: {type: string, format: uuid}
-        status: {$ref: '#/components/schemas/VideoJobStatus'}
-        scene_id: {type: string, nullable: true}
-        veo_model: {type: string}
-        queue_position: {type: integer}
-        created_at: {type: string, format: date-time}
-        started_at: {type: string, format: date-time, nullable: true}
-        completed_at: {type: string, format: date-time, nullable: true}
-        result_asset_id: {type: string, format: uuid, nullable: true}
-        error_message: {type: string}
-        credits: {$ref: '#/components/schemas/CreditUsage'}
-      required: [id, workflow_id, status, veo_model, queue_position, created_at]
-    VideoEnqueueResponse:
-      type: object
-      properties:
-        workflow: {$ref: '#/components/schemas/Workflow'}
-        jobs:
-          type: array
-          items: {$ref: '#/components/schemas/VideoJob'}
-        skipped:
-          type: array
-          items: {$ref: '#/components/schemas/VideoJob'}
-        limited_scene_ids:
-          type: array
-          items: {type: string}
-        requested_scenes:
-          type: array
-          items: {type: string}
-        enqueued_scenes:
-          type: array
-          items: {type: string}
-        skipped_scene_ids:
-          type: array
-          items: {type: string}
-        requested_credits: {$ref: '#/components/schemas/CreditUsage'}
-      required: [workflow]
-    SelectedVersionResponse:
-      type: object
-      properties:
-        selected_version:
-          type: integer
+          items:
+            $ref: '#/components/schemas/Workflow'
+        cursor:
+          type: string
           nullable: true
-    SubscriptionTier:
-      type: string
-      enum: [free, pro, ultra]
-    CreditType:
-      type: string
-      enum: [monthly, event, top_up]
-    Subscription:
-      type: object
-      properties:
-        tier: {$ref: '#/components/schemas/SubscriptionTier'}
-        auto_renew: {type: boolean}
-        period_start: {type: string, format: date-time}
-        period_end: {type: string, format: date-time}
-      required: [tier, auto_renew, period_start, period_end]
-    CreditBucket:
-      type: object
-      properties:
-        id: {type: string, format: uuid}
-        type: {$ref: '#/components/schemas/CreditType'}
-        source: {type: string}
-        remaining: {type: integer}
-        expires_at: {type: string, format: date-time}
-        period_end: {type: string, format: date-time}
-      required: [id, type, remaining]
-    CreditsTotals:
-      type: object
-      description: Totals per credit bucket type.
-      additionalProperties:
-        type: integer
-    Credits:
-      type: object
-      properties:
-        subscription: {$ref: '#/components/schemas/Subscription'}
-        buckets:
-          type: array
-          items: {$ref: '#/components/schemas/CreditBucket'}
-        totals: {$ref: '#/components/schemas/CreditsTotals'}
-        total_available: {type: integer}
-      required: [subscription, buckets, totals, total_available]
-    CreditTransactionDirection:
-      type: string
-      enum: [earn, spend, expire, refund]
-    CreditTransactionType:
-      type: string
-      enum: [subscription, top_up, scene_image, character_image, first_frame, video, refund, expire]
-    CreditTransaction:
-      type: object
-      properties:
-        id: {type: string, format: uuid}
-        direction: {$ref: '#/components/schemas/CreditTransactionDirection'}
-        type: {$ref: '#/components/schemas/CreditTransactionType'}
-        amount: {type: integer}
-        running_balance_after: {type: integer}
-        timestamp:
-          type: integer
-          description: Unix timestamp (seconds)
-        description: {type: string}
-        workflow_id: {type: string, format: uuid}
-        bucket_source: {type: string}
-        subscription_tier: {$ref: '#/components/schemas/SubscriptionTier'}
-      required: [id, direction, type, amount, running_balance_after, timestamp]
-    CreditTransactionPage:
-      type: object
-      properties:
-        page: {type: integer}
-        page_size: {type: integer}
-        total: {type: integer}
-        has_more: {type: boolean}
-        items:
-          type: array
-          items: {$ref: '#/components/schemas/CreditTransaction'}
-      required: [page, page_size, total, has_more, items]
-    CreditUsage:
-      type: object
-      properties:
-        requested: {type: integer}
-        processed: {type: integer}
-        unit_cost: {type: integer}
-        charged: {type: integer}
-        shortfall: {type: integer}
-        available: {type: integer}
-      required: [requested, processed, unit_cost, charged]
+        has_more:
+          type: boolean
+
 paths:
   /healthz:
     get:
-      tags: [Health]
+      tags:
+        - Health
       summary: Health check
+      description: Returns service health status
+      operationId: healthCheck
       responses:
         '200':
-          description: OK
+          description: Service is healthy
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: ok
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
 
-  /api/v1/users/register:
+  /users/register:
     post:
-      tags: [Auth]
-      summary: Register with email/password
+      tags:
+        - Auth
+      summary: Register new user
+      description: Create a new user account
+      operationId: register
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password, invite_code]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password:
-                  type: string
-                  minLength: 8
-                invite_code:
-                  type: string
-                  description: Required invite code for registration
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        '201':
-          description: Auth tokens
+        '200':
+          description: User registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthTokens'
+                $ref: '#/components/schemas/AuthResponse'
         '400':
-          $ref: '#/components/responses/Error400'
-        '409':
-          description: Email already exists
+          description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/users/login:
+  /users/login:
     post:
-      tags: [Auth]
-      summary: Login with email/password
+      tags:
+        - Auth
+      summary: User login
+      description: Authenticate user and return JWT token
+      operationId: login
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email:
-                  type: string
-                  format: email
-                password: {type: string}
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Auth tokens
+          description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthTokens'
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/AuthResponse'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/users/oauth/{provider}/start:
+  /users/oauth/{provider}/start:
     get:
-      tags: [OAuth]
+      tags:
+        - OAuth
       summary: Start OAuth flow
+      description: Initiate OAuth authentication with provider
+      operationId: oauthStart
       parameters:
         - in: path
           name: provider
           required: true
-          schema: {type: string, enum: [google]}
+          schema:
+            type: string
+            enum:
+              - google
         - in: query
           name: redirect_uri
-          required: true
-          schema: {type: string, format: uri}
+          schema:
+            type: string
         - in: query
           name: invite_code
-          required: true
-          schema: {type: string}
-          description: Required invite code for new user registration
+          schema:
+            type: string
       responses:
         '302':
-          description: Redirect to provider
+          description: Redirect to OAuth provider
         '400':
-          $ref: '#/components/responses/Error400'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '503':
-          description: OAuth provider not configured
+          description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/users/oauth/{provider}/callback:
+  /users/oauth/{provider}/callback:
     get:
-      tags: [OAuth]
+      tags:
+        - OAuth
       summary: OAuth callback
+      description: Handle OAuth provider callback
+      operationId: oauthCallback
       parameters:
         - in: path
           name: provider
           required: true
-          schema: {type: string, enum: [google]}
-        - in: query
-          name: code
-          required: true
-          schema: {type: string}
+          schema:
+            type: string
+            enum:
+              - google
         - in: query
           name: state
           required: true
-          schema: {type: string}
+          schema:
+            type: string
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
       responses:
         '302':
-          description: Redirects to redirect_uri with tokens or oauth_error params
-        '200':
-          description: Tokens returned directly when redirect is unavailable
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthTokens'
+          description: Redirect to application with token
         '400':
-          $ref: '#/components/responses/Error400'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '503':
-          description: OAuth provider not configured
+          description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/users/token/refresh:
+  /users/token/refresh:
     post:
-      tags: [Auth]
+      tags:
+        - Auth
       summary: Refresh access token
+      description: Get new access token using refresh token
+      operationId: refreshToken
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token: {type: string}
+              $ref: '#/components/schemas/RefreshTokenRequest'
       responses:
         '200':
-          description: Auth tokens
+          description: Token refreshed successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthTokens'
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/AuthResponse'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/waitlist:
+  /waitlist:
     post:
-      tags: [Auth]
-      summary: Join waitlist (for users without invite code)
+      tags:
+        - Auth
+      summary: Join waitlist
+      description: Add email to waitlist
+      operationId: joinWaitlist
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email]
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/WaitlistRequest'
       responses:
-        '201':
-          description: Successfully joined waitlist
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message: {type: string}
-                  status: {type: string, enum: [pending]}
         '200':
-          description: Email already in waitlist
+          description: Added to waitlist
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  message: {type: string}
-                  status: {type: string}
+                  message:
+                    type: string
         '400':
-          $ref: '#/components/responses/Error400'
-        '409':
-          description: Email already registered
+          description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/text-llm-debug/config:
-    get:
-      tags: [Debug]
-      summary: Get default text LLM configurations
-      responses:
-        '200':
-          description: Default (production) text LLM parameters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TextLLMDebugDefaults'
-
-  /api/v1/text-llm-debug/invoke:
+  /webhooks/stripe:
     post:
-      tags: [Debug]
-      summary: Invoke text LLM with production defaults
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TextLLMDebugInvokeRequest'
-      responses:
-        '200':
-          description: LLM response and duration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TextLLMDebugInvokeResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '408':
-          description: Request was canceled
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '502':
-          description: Upstream LLM error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '504':
-          description: Timed out waiting for the LLM
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/v1/text-llm-debug/history:
-    get:
-      tags: [Debug]
-      summary: List text LLM debug invocations
-      parameters:
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            default: 50
-            minimum: 1
-            maximum: 200
-        - in: query
-          name: offset
-          schema:
-            type: integer
-            default: 0
-            minimum: 0
-      responses:
-        '200':
-          description: Paginated invocation history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TextLLMDebugHistoryResponse'
-
-  /api/v1/admin/invite-codes:
-    post:
-      tags: [Admin]
-      security: [{bearerAuth: []}]
-      summary: Create new invite code (admin only)
+      tags:
+        - Webhooks
+      summary: Stripe webhook
+      description: Handle Stripe webhook events
+      operationId: stripeWebhook
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [code, quota]
-              properties:
-                code:
-                  type: string
-                  description: Invite code string (e.g. "YOROLL001")
-                quota:
-                  type: integer
-                  minimum: 1
-                  description: Total number of registrations allowed
-                credits_reward:
-                  type: integer
-                  minimum: 0
-                  default: 0
-                  description: Credits to award on successful registration
       responses:
-        '201':
-          description: Invite code created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/InviteCode'
+        '200':
+          description: Webhook processed
         '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-    get:
-      tags: [Admin]
-      security: [{bearerAuth: []}]
-      summary: List all invite codes (admin only)
-      parameters:
-        - in: query
-          name: limit
-          schema: {type: integer, default: 50}
-        - in: query
-          name: offset
-          schema: {type: integer, default: 0}
-      responses:
-        '200':
-          description: List of invite codes
+          description: Invalid webhook
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  codes:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/InviteCode'
-                  limit: {type: integer}
-                  offset: {type: integer}
-        '401':
-          $ref: '#/components/responses/Error401'
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/admin/invite-codes/{inviteCodeID}:
+  /users/me/credits:
     get:
-      tags: [Admin]
-      security: [{bearerAuth: []}]
-      summary: Get invite code by ID (admin only)
-      parameters:
-        - in: path
-          name: inviteCodeID
-          required: true
-          schema: {type: string, format: uuid}
+      tags:
+        - Credits
+      summary: Get user credits
+      description: Retrieve current credit balance
+      operationId: getCredits
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: Invite code details
+          description: Credits retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InviteCode'
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/CreditsResponse'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    patch:
-      tags: [Admin]
-      security: [{bearerAuth: []}]
-      summary: Update invite code (admin only)
-      parameters:
-        - in: path
-          name: inviteCodeID
-          required: true
-          schema: {type: string, format: uuid}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [active, inactive]
-                quota:
-                  type: integer
-                  minimum: 1
-                credits_reward:
-                  type: integer
-                  minimum: 0
-      responses:
-        '200':
-          description: Updated invite code
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InviteCode'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/admin/waitlist:
+  /credits/transactions:
     get:
-      tags: [Admin]
-      security: [{bearerAuth: []}]
-      summary: List waitlist entries (admin only)
-      parameters:
-        - in: query
-          name: status
-          schema: {type: string, enum: [pending, approved, rejected]}
-        - in: query
-          name: limit
-          schema: {type: integer, default: 50}
-        - in: query
-          name: offset
-          schema: {type: integer, default: 0}
-      responses:
-        '200':
-          description: List of waitlist entries
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  entries:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/WaitlistEntry'
-                  limit: {type: integer}
-                  offset: {type: integer}
-        '401':
-          $ref: '#/components/responses/Error401'
-
-  /api/v1/users/me/credits:
-    get:
-      tags: [Credits]
-      security: [{bearerAuth: []}]
-      summary: Get subscription tier and credit balances
-      responses:
-        '200':
-          description: Credit balances
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Credits'
-        '401':
-          $ref: '#/components/responses/Error401'
-
-  /api/v1/credits/transactions:
-    get:
-      tags: [Credits]
-      security: [{bearerAuth: []}]
-      summary: List credit transactions
+      tags:
+        - Credits
+      summary: Get credit transactions
+      description: List credit transaction history
+      operationId: getCreditTransactions
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: page
-          schema: {type: integer}
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
         - in: query
           name: page_size
-          schema: {type: integer}
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
         - in: query
           name: direction
           schema:
             type: string
-            enum: [all, spend, earn]
-          description: Filter by direction; defaults to all
+            enum:
+              - asc
+              - desc
       responses:
         '200':
-          description: Credit transaction page
+          description: Transactions retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreditTransactionPage'
+                $ref: '#/components/schemas/CreditTransactionsResponse'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/payments/checkout/subscription:
+  /payments/checkout/subscription:
     post:
-      tags: [Payments]
-      security: [{bearerAuth: []}]
-      summary: Create Stripe checkout session for subscription
+      tags:
+        - Payments
+      summary: Create subscription checkout
+      description: Create Stripe checkout session for subscription
+      operationId: subscriptionCheckout
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [tier]
-              properties:
-                tier:
-                  type: string
-                  enum: [pro_monthly, pro_annual, ultra_monthly, ultra_annual]
-                  description: Subscription tier to purchase
+              $ref: '#/components/schemas/SubscriptionCheckoutRequest'
       responses:
         '200':
           description: Checkout session created
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  checkout_url:
-                    type: string
-                    format: uri
-                    description: Stripe checkout URL to redirect user to
-                required: [checkout_url]
+                $ref: '#/components/schemas/CheckoutResponse'
         '400':
-          $ref: '#/components/responses/Error400'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Error401'
-        '503':
-          description: Payment service unavailable
+          description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/payments/checkout/topup:
+  /payments/checkout/topup:
     post:
-      tags: [Payments]
-      security: [{bearerAuth: []}]
-      summary: Create Stripe checkout session for credit top-up
-      description: Purchase credit packages (small=100 credits/$10, medium=1000 credits/$90, large=5000 credits/$400)
+      tags:
+        - Payments
+      summary: Create top-up checkout
+      description: Create Stripe checkout session for credit top-up
+      operationId: topUpCheckout
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [package]
-              properties:
-                package:
-                  type: string
-                  enum: [small, medium, large]
-                  description: Credit package size (small=100 credits/$10, medium=1000 credits/$90, large=5000 credits/$400)
+              $ref: '#/components/schemas/TopUpCheckoutRequest'
       responses:
         '200':
           description: Checkout session created
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  checkout_url:
-                    type: string
-                    format: uri
-                    description: Stripe checkout URL to redirect user to
-                required: [checkout_url]
+                $ref: '#/components/schemas/CheckoutResponse'
         '400':
-          $ref: '#/components/responses/Error400'
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Error401'
-        '503':
-          description: Payment service unavailable
+          description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/payments/checkout/session/{sessionID}:
+  /payments/checkout/session/{sessionID}:
     get:
-      tags: [Payments]
-      security: [{bearerAuth: []}]
-      summary: Get Stripe checkout session details
-      description: Retrieves the details of a Stripe checkout session by session ID. Returns the full session object including payment status, customer info, and metadata.
+      tags:
+        - Payments
+      summary: Get checkout session
+      description: Retrieve checkout session details
+      operationId: getCheckoutSession
+      security:
+        - bearerAuth: []
       parameters:
-        - name: sessionID
-          in: path
-          required: true
-          description: The Stripe checkout session ID (e.g., cs_test_...)
+        - $ref: '#/components/parameters/SessionID'
+      responses:
+        '200':
+          description: Session retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/story:
+    post:
+      tags:
+        - Workflows
+      summary: Create story workflow
+      description: Start new story generation workflow
+      operationId: createStory
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoryRequest'
+      responses:
+        '200':
+          description: Story workflow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/plot:
+    post:
+      tags:
+        - Workflows
+      summary: Generate plot
+      description: Generate plot for workflow
+      operationId: generatePlot
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      responses:
+        '200':
+          description: Plot generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/characters/images:
+    post:
+      tags:
+        - Characters
+      summary: Generate character images
+      description: Generate images for all characters
+      operationId: generateCharacterImages
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      responses:
+        '200':
+          description: Character images generated
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Assets
+      summary: Get character images asset
+      description: Retrieve character images asset
+      operationId: getCharacterImagesAsset
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
           schema:
-            type: string
+            type: integer
       responses:
         '200':
-          description: Checkout session details retrieved successfully
+          description: Asset retrieved successfully
           content:
             application/json:
               schema:
-                type: object
-                description: Stripe checkout session object
-                properties:
-                  id:
-                    type: string
-                    description: Unique identifier for the checkout session
-                  object:
-                    type: string
-                    example: checkout.session
-                  payment_status:
-                    type: string
-                    enum: [paid, unpaid, no_payment_required]
-                    description: Payment status of the checkout session
-                  status:
-                    type: string
-                    enum: [open, complete, expired]
-                    description: Overall status of the checkout session
-                  mode:
-                    type: string
-                    enum: [payment, subscription, setup]
-                    description: Mode of the checkout session
-                  customer:
-                    type: string
-                    description: Stripe customer ID
-                  customer_email:
-                    type: string
-                    description: Customer's email address
-                  amount_total:
-                    type: integer
-                    description: Total amount in cents
-                  currency:
-                    type: string
-                    description: Three-letter ISO currency code
-                  subscription:
-                    type: string
-                    description: Subscription ID if mode is subscription
-                  payment_intent:
-                    type: string
-                    description: Payment intent ID if mode is payment
-                  metadata:
-                    type: object
-                    description: Custom metadata (user_id, tier, package, credits, etc.)
-                    additionalProperties:
-                      type: string
-                  success_url:
-                    type: string
-                    description: URL to redirect after successful payment
-                  cancel_url:
-                    type: string
-                    description: URL to redirect if payment is cancelled
-                  created:
-                    type: integer
-                    description: Unix timestamp of when the session was created
-                  expires_at:
-                    type: integer
-                    description: Unix timestamp of when the session expires
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/WorkflowAsset'
         '401':
-          $ref: '#/components/responses/Error401'
-        '500':
-          description: Failed to retrieve checkout session
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: Payment service unavailable
+          description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/v1/webhooks/stripe:
+  /workflows/{workflowID}/characters/{characterID}/images:
     post:
-      tags: [Webhooks]
-      summary: Stripe webhook handler
-      description: Handles Stripe webhook events (checkout.session.completed, etc.). Requires Stripe signature verification.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              description: Stripe webhook event payload
+      tags:
+        - Characters
+      summary: Regenerate character image
+      description: Regenerate image for specific character
+      operationId: regenerateCharacterImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/CharacterID'
       responses:
         '200':
-          description: Webhook processed successfully
+          description: Character image regenerated
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  received:
-                    type: boolean
-                    example: true
-        '400':
-          $ref: '#/components/responses/Error400'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/mock/users/{userID}/subscription:
+  /workflows/{workflowID}/characters/{characterID}/images/upload:
     post:
-      tags: [Mock]
-      summary: Mock set user subscription tier and monthly credits
-      parameters:
-        - in: path
-          name: userID
-          required: true
-          schema: {type: string, format: uuid}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [tier]
-              properties:
-                tier: {$ref: '#/components/schemas/SubscriptionTier'}
-                auto_renew: {type: boolean}
-      responses:
-        '200':
-          description: Updated subscription and credits
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Credits'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/mock/users/{userID}/booster:
-    post:
-      tags: [Mock]
-      summary: Mock grant a booster (top-up credits)
-      parameters:
-        - in: path
-          name: userID
-          required: true
-          schema: {type: string, format: uuid}
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [amount]
-              properties:
-                amount: {type: integer}
-                source: {type: string}
-      responses:
-        '200':
-          description: Updated credits after booster
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Credits'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/story:
-    post:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Generate story and characters
-      description: Idea is required when creating a new workflow; when workflow_id is provided the existing idea can be reused.
-      parameters:
-        - $ref: '#/components/parameters/AsyncQuery'
-        - $ref: '#/components/parameters/PreferAsync'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                idea: {type: string}
-                language: {type: string}
-                workflow_id: {type: string, format: uuid}
-                story_style: {type: string}
-                visual_style: {type: string}
-                aspect_ratio: {type: string}
-                number_of_shots: {type: integer}
-                batch: {type: integer}
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                idea: {type: string}
-                language: {type: string}
-                workflow_id: {type: string, format: uuid}
-                story_style: {type: string}
-                visual_style: {type: string}
-                aspect_ratio: {type: string}
-                number_of_shots: {type: integer}
-                batch: {type: integer}
-                files:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-      responses:
-        '200':
-          description: Story asset with characters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StoryAssetResponse'
-        '202':
-          description: Accepted for async processing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StageAcceptedResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/images/history:
-    get:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: List successful scene image generations and uploads (newest first)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-        - in: query
-          name: limit
-          schema: {type: integer, default: 20, maximum: 100}
-        - in: query
-          name: cursor
-          schema: {type: integer, description: Fetch entries before this asset version}
-      responses:
-        '200':
-          description: Scene image history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImageHistoryResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/first-frame/images:
-    get:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Fetch first frame images asset
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
-      responses:
-        '200':
-          description: First frame images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImagesAssetResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/first-frame/images:
-    post:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Upload or generate a first frame image for a scene
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-      requestBody:
-        required: false
-        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                description_prompt: {type: string}
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                references:
-                  type: array
-                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                description_prompt: {type: string}
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                file:
-                  type: string
-                  format: binary
-                references:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                reference_urls:
-                  type: array
-                  description: One or more http(s) URLs to fetch as references.
-                  items:
-                    type: string
-                    format: uri
-      responses:
-        '200':
-          description: First frame images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImagesAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/first-frame/images/history:
-    get:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: List successful first frame image generations and uploads (newest first)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-        - in: query
-          name: limit
-          schema: {type: integer, default: 20, maximum: 100}
-        - in: query
-          name: cursor
-          schema: {type: integer, description: Fetch entries before this asset version}
-      responses:
-        '200':
-          description: First frame image history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImageHistoryResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/plot:
-    post:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Generate chapter plan, branching scripts, and scenes (multi-chapter)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/AsyncQuery'
-        - $ref: '#/components/parameters/PreferAsync'
-      responses:
-        '200':
-          description: Plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '202':
-          description: Accepted for async processing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StageAcceptedResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Fetch plot asset
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
-      responses:
-        '200':
-          description: Plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/characters/images:
-    post:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Generate character images from prompts
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/AsyncQuery'
-        - $ref: '#/components/parameters/PreferAsync'
-      responses:
-        '200':
-          description: Character images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CharacterImagesAssetResponse'
-        '202':
-          description: Accepted for async processing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StageAcceptedResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    get:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Fetch character images asset
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
-      responses:
-        '200':
-          description: Character images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CharacterImagesAssetResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/characters/{characterID}/images:
-    post:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Regenerate a single character image (prompt or prompt + reference images)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/CharacterID'
-      requestBody:
-        required: false
-        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                prompt: {type: string}
-                references:
-                  type: array
-                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                prompt: {type: string}
-                references:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                reference_urls:
-                  type: array
-                  description: One or more http(s) URLs to fetch as references.
-                  items:
-                    type: string
-                    format: uri
-      responses:
-        '200':
-          description: Updated character images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CharacterImagesAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
-
-  /api/v1/workflows/{workflowID}/characters/{characterID}/images/upload:
-    post:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Upload a character image (manual override)
+      tags:
+        - Characters
+      summary: Upload character image
+      description: Upload custom image for character
+      operationId: uploadCharacterImage
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/CharacterID'
@@ -2199,430 +1264,278 @@ paths:
                 file:
                   type: string
                   format: binary
-              required: [file]
       responses:
         '200':
-          description: Updated character images asset
+          description: Image uploaded successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CharacterImagesAssetResponse'
+                type: object
         '400':
-          $ref: '#/components/responses/Error400'
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/characters/{characterID}/images/history:
+  /workflows/{workflowID}/characters/{characterID}/images/history:
     get:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: List successful character image generations and uploads (newest first)
+      tags:
+        - Characters
+      summary: Get character image history
+      description: List all image versions for character
+      operationId: getCharacterImageHistory
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/CharacterID'
-        - in: query
-          name: limit
-          schema: {type: integer, default: 20, maximum: 100}
-        - in: query
-          name: cursor
-          schema: {type: integer, description: Fetch entries before this asset version}
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
-          description: Character image history
+          description: History retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CharacterImageHistoryResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
+                type: object
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/characters:
+  /workflows/{workflowID}/characters:
     post:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Add a character to the story payload
+      tags:
+        - Characters
+      summary: Add character
+      description: Add new character to workflow
+      operationId: addCharacter
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
       requestBody:
         required: true
-        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: '#/components/schemas/CharacterInput'
-                - type: object
-                  properties:
-                    image_method: {$ref: '#/components/schemas/ImageMethod'}
-                    prompt: {type: string, description: Optional prompt override when generating during creation}
-                    references:
-                      type: array
-                      items: {$ref: '#/components/schemas/ReferenceImageInput'}
-          multipart/form-data:
-            schema:
               type: object
-              properties:
-                character:
-                  type: string
-                  description: JSON-encoded CharacterInput
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                prompt: {type: string}
-                file:
-                  type: string
-                  format: binary
-                references:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                reference_urls:
-                  type: array
-                  description: One or more http(s) URLs to fetch as references.
-                  items:
-                    type: string
-                    format: uri
-              required: [character]
       responses:
         '200':
-          description: Updated story asset
+          description: Character added successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
+                type: object
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/characters/{characterID}:
+  /workflows/{workflowID}/characters/{characterID}:
     delete:
-      tags: [Characters]
-      security: [{bearerAuth: []}]
-      summary: Remove a character from the story payload
+      tags:
+        - Characters
+      summary: Remove character
+      description: Delete character from workflow
+      operationId: removeCharacter
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/CharacterID'
       responses:
         '200':
-          description: Updated story asset
+          description: Character removed successfully
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/scenes/images:
+  /workflows/{workflowID}/scenes/images:
     post:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Generate all scene images
+      tags:
+        - Scenes
+      summary: Generate scene images
+      description: Generate images for all scenes
+      operationId: generateSceneImages
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/AsyncQuery'
-        - $ref: '#/components/parameters/PreferAsync'
       responses:
         '200':
-          description: Scene images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImagesAssetResponse'
-        '202':
-          description: Accepted for async processing
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StageAcceptedResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    get:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Fetch scene images asset
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
-      responses:
-        '200':
-          description: Scene images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImagesAssetResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/images:
-    post:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Regenerate a specific scene image
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-      requestBody:
-        required: false
-        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                description_prompt: {type: string}
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                references:
-                  type: array
-                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                description_prompt: {type: string}
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                file:
-                  type: string
-                  format: binary
-                references:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                reference_urls:
-                  type: array
-                  description: One or more http(s) URLs to fetch as references.
-                  items:
-                    type: string
-                    format: uri
-      responses:
-        '200':
-          description: Updated scene images asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneImagesAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos/upload:
-    post:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: Upload a video file for a scene
-      description: Accept a single video upload (max 100MB). Uploaded videos do not capture motion prompts; the prompt field will be empty.
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Video file to attach to the scene (max 100MB).
-              required: [file]
-      responses:
-        '200':
-          description: Updated videos asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneVideosAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos:
-    post:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: Regenerate a single scene video with a new motion prompt
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [prompt]
-              properties:
-                prompt: {type: string}
-                veo_model:
-                  type: string
-                  enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
-      responses:
-        '202':
-          description: Video jobs queued
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VideoEnqueueResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/scenes/{sceneID}/videos/history:
-    get:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: List successful scene video generations and uploads (newest first)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/SceneID'
-        - in: query
-          name: limit
-          schema: {type: integer, default: 20, maximum: 100}
-        - in: query
-          name: cursor
-          schema: {type: integer, description: Fetch entries before this asset version}
-      responses:
-        '200':
-          description: Scene video history
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneVideoHistoryResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/videos:
-    post:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: Generate videos for all scenes or a specific scene
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                scene_id: {type: string}
-                veo_model:
-                  type: string
-                  enum: [veo-3.1-fast-generate-preview, veo-3.1-generate-preview]
-      responses:
-        '202':
-          description: Video jobs queued
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/VideoEnqueueResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    get:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: Fetch videos asset
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
-      responses:
-        '200':
-          description: Videos asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SceneVideosAssetResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/videos/jobs:
-    get:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: List video job history for a workflow
-      description: Jobs are returned in descending created_at order (newest first).
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - in: query
-          name: limit
-          schema: {type: integer}
-          description: Max number of jobs to return (default 200)
-        - in: query
-          name: scene_id
-          schema: {type: string}
-          description: Optional scene ID to filter jobs
-      responses:
-        '200':
-          description: Video job history
+          description: Scene images generated
           content:
             application/json:
               schema:
                 type: object
-                properties:
-                  workflow: {$ref: '#/components/schemas/Workflow'}
-                  jobs:
-                    type: array
-                    items: {$ref: '#/components/schemas/VideoJob'}
-                required: [workflow, jobs]
-        '400':
-          $ref: '#/components/responses/Error400'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/publish/cover:
-    post:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Upload a publish cover image
-      description: Upload a cover image (JPEG, PNG, or WebP up to 10MB). Use the returned URL as game_picture when publishing.
+    get:
+      tags:
+        - Assets
+      summary: Get scene images asset
+      description: Retrieve scene images asset
+      operationId: getSceneImagesAsset
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/images:
+    post:
+      tags:
+        - Scenes
+      summary: Regenerate scene image
+      description: Regenerate image for specific scene
+      operationId: regenerateSceneImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      responses:
+        '200':
+          description: Scene image regenerated
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/images/history:
+    get:
+      tags:
+        - Scenes
+      summary: Get scene image history
+      description: List all image versions for scene
+      operationId: getSceneImageHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/first-frame/images:
+    post:
+      tags:
+        - Scenes
+      summary: Generate first frame image
+      description: Generate first frame image for scene video
+      operationId: generateFirstFrameImage
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      responses:
+        '200':
+          description: First frame image generated
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/first-frame/images/history:
+    get:
+      tags:
+        - Scenes
+      summary: Get first frame image history
+      description: List all first frame image versions
+      operationId: getFirstFrameImageHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/videos/upload:
+    post:
+      tags:
+        - Videos
+      summary: Upload scene video
+      description: Upload custom video for scene
+      operationId: uploadSceneVideo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
       requestBody:
         required: true
         content:
@@ -2633,28 +1546,264 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: Cover image file (max 10MB)
-              required: [file]
       responses:
         '200':
-          description: Cover uploaded
+          description: Video uploaded successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublishCoverResponse'
+                type: object
         '400':
-          $ref: '#/components/responses/Error400'
+          description: Invalid file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/publish:
+  /workflows/{workflowID}/scenes/{sceneID}/videos:
     post:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Publish the game
-      description: Starts the publish stage with the provided metadata. Upload a cover first if including game_picture.
+      tags:
+        - Videos
+      summary: Regenerate scene video
+      description: Regenerate video for specific scene
+      operationId: regenerateSceneVideo
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: Motion prompt for video generation
+                veo_model:
+                  type: string
+                  description: Video model (Veo or Sora)
+                  enum:
+                    - veo-3.1-fast-generate-preview
+                    - veo-3.1-generate-preview
+                    - sora-2
+                    - sora-2-pro
+      responses:
+        '200':
+          description: Video regeneration started
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/videos:
+    post:
+      tags:
+        - Videos
+      summary: Generate videos
+      description: Generate videos for workflow
+      operationId: generateVideos
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scene_id:
+                  type: string
+                  description: Optional scene identifier
+                veo_model:
+                  type: string
+                  description: Video model (Veo or Sora)
+                  enum:
+                    - veo-3.1-fast-generate-preview
+                    - veo-3.1-generate-preview
+                    - sora-2
+                    - sora-2-pro
+      responses:
+        '200':
+          description: Video generation started
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Assets
+      summary: Get videos asset
+      description: Retrieve videos asset
+      operationId: getVideosAsset
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/videos/jobs:
+    get:
+      tags:
+        - Videos
+      summary: Get video job history
+      description: List video generation jobs for workflow
+      operationId: getVideoJobHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Jobs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/publish/cover:
+    post:
+      tags:
+        - Workflows
+      summary: Publish cover
+      description: Publish workflow cover image
+      operationId: publishCover
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Cover published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/publish:
+    post:
+      tags:
+        - Workflows
+      summary: Publish workflow
+      description: Publish complete workflow
+      operationId: publishWorkflow
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      responses:
+        '200':
+          description: Workflow published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      tags:
+        - Assets
+      summary: Get publish asset
+      description: Retrieve publish asset
+      operationId: getPublishAsset
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/chapters:
+    post:
+      tags:
+        - Workflows
+      summary: Add chapter
+      description: Add new chapter to workflow
+      operationId: addChapter
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
       requestBody:
@@ -2663,429 +1812,736 @@ paths:
           application/json:
             schema:
               type: object
-              required: [game_name]
-              properties:
-                game_name:
-                  type: string
-                  description: Name shown to players
-                game_picture:
-                  type: string
-                  description: URL returned from the publish cover upload for this workflow
-                game_genre:
-                  type: string
-                  description: Optional genre label
       responses:
-        '202':
-          description: Accepted for publishing
+        '200':
+          description: Chapter added successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StageAcceptedResponse'
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/chapters/{chapterID}:
+    delete:
+      tags:
+        - Workflows
+      summary: Remove chapter
+      description: Delete chapter from workflow
+      operationId: removeChapter
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+      responses:
+        '200':
+          description: Chapter removed successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/chapters/{chapterID}/scenes:
+    post:
+      tags:
+        - Workflows
+      summary: Add scene
+      description: Add new scene to chapter
+      operationId: addScene
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Scene added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/chapters/{chapterID}/scenes/{sceneID}:
+    delete:
+      tags:
+        - Workflows
+      summary: Remove scene
+      description: Delete scene from chapter
+      operationId: removeScene
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+        - $ref: '#/components/parameters/SceneID'
+      responses:
+        '200':
+          description: Scene removed successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Workflows
+      summary: Update scene
+      description: |
+        Update scene content including description, image prompts, transition logic, character assignments, and QTE configuration.
+        All fields are optional - only provide the fields you want to update.
+      operationId: updateScene
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/ChapterID'
+        - $ref: '#/components/parameters/SceneID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenePatchRequest'
+            examples:
+              basic_update:
+                summary: Update scene description
+                value:
+                  description: "A dark and mysterious forest path"
+                  short_introduction: "The hero enters the forest"
+              full_update:
+                summary: Complete scene update
+                value:
+                  scene_id: "forest_1"
+                  short_introduction: "Entering the enchanted forest"
+                  description: "A winding path through ancient trees"
+                  image_prompt_params:
+                    description_prompt: "Dark forest with mystical lighting"
+                    visual_style: "cinematic"
+                    ratio: "16:9"
+                  video_motion_prompt: "Camera slowly pans through the forest"
+                  transition_logic:
+                    type: "branching"
+                    details:
+                      options:
+                        - text: "Take the left path"
+                          next_scene: "forest_left"
+                        - text: "Take the right path"
+                          next_scene: "forest_right"
+                  character_ids: ["hero", "guide"]
+                  qte:
+                    type: "choice"
+                    next_node_map:
+                      "1": "scene_success"
+                      "-1": "scene_failure"
+      responses:
+        '200':
+          description: Scene updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
         '400':
-          $ref: '#/components/responses/Error400'
+          description: Invalid request (e.g., invalid QTE next_node_map keys)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/Error404'
-    get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Fetch publish asset
+          description: Workflow, chapter, or scene not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/story/summary:
+    patch:
+      tags:
+        - Workflows
+      summary: Update story summary
+      description: Update workflow story summary
+      operationId: updateStorySummary
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
       responses:
         '200':
-          description: Publish asset
+          description: Summary updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublishAssetResponse'
+                type: object
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/video-jobs/{jobID}:
+  /workflows/{workflowID}/assets/{assetType}/versions:
     get:
-      tags: [Videos]
-      security: [{bearerAuth: []}]
-      summary: Get video job status
+      tags:
+        - Assets
+      summary: List asset versions
+      description: Get all versions of a specific asset type
+      operationId: listAssetVersions
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/JobID'
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AssetType'
       responses:
         '200':
-          description: Job status
+          description: Asset versions retrieved
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VideoJob'
+                type: object
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}:
+  /workflows/{workflowID}/assets/{assetType}/selection:
+    patch:
+      tags:
+        - Assets
+      summary: Select asset version
+      description: Set the active version for an asset type
+      operationId: selectAssetVersion
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/AssetType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Asset version selected
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}:
     get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
+      tags:
+        - Workflows
       summary: Get workflow
+      description: Retrieve workflow details
+      operationId: getWorkflow
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
       responses:
         '200':
-          description: Workflow
+          description: Workflow retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workflow'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/Error404'
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows:
+  /workflows:
     get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
+      tags:
+        - Workflows
       summary: List workflows
+      description: Get all user workflows
+      operationId: listWorkflows
+      security:
+        - bearerAuth: []
       parameters:
-        - in: query
-          name: limit
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 20
-        - in: query
-          name: cursor
-          schema: {type: string}
-          description: Opaque pagination cursor returned by the previous page.
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
-          description: Workflow list with cursor
+          description: Workflows retrieved successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowListResponse'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/story:
+  /video-jobs/{jobID}:
     get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Fetch story asset
+      tags:
+        - Videos
+      summary: Get video job status
+      description: Retrieve status of video generation job
+      operationId: getVideoJobStatus
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/VersionQuery'
+        - $ref: '#/components/parameters/JobID'
       responses:
         '200':
-          description: Story asset
+          description: Job status retrieved
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryAssetResponse'
+                $ref: '#/components/schemas/VideoJob'
         '401':
-          $ref: '#/components/responses/Error401'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
-          $ref: '#/components/responses/Error404'
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/status:
+  /workflows/{workflowID}/story:
     get:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Get workflow stage/status snapshot
+      tags:
+        - Assets
+      summary: Get story asset
+      description: Retrieve story asset for workflow
+      operationId: getStoryAsset
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
-      responses:
-        '200':
-          description: Status
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStatusResponse'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/chapters:
-    post:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Add a chapter
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id]
-              properties:
-                id: {type: string}
-                title: {type: string}
-      responses:
-        '200':
-          description: Updated plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/chapters/{chapterID}:
-    delete:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Remove an empty chapter
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/ChapterID'
-      responses:
-        '200':
-          description: Updated plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes:
-    post:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Add a scene to a chapter at a specific index
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/ChapterID'
-      requestBody:
-        required: true
-        description: Inline JSON reference payloads are limited to ~12MB; larger requests return 413.
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                insert_index:
-                  type: integer
-                  minimum: 0
-                scene:
-                  $ref: '#/components/schemas/Scene'
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                description_prompt:
-                  type: string
-                  description: Required unless image_method is upload
-                references:
-                  type: array
-                  items: {$ref: '#/components/schemas/ReferenceImageInput'}
-              required: [scene, insert_index]
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                scene:
-                  type: string
-                  description: JSON-encoded Scene object
-                insert_index:
-                  type: integer
-                image_method: {$ref: '#/components/schemas/ImageMethod'}
-                description_prompt:
-                  type: string
-                  description: Required unless image_method is upload
-                file:
-                  type: string
-                  format: binary
-                references:
-                  type: array
-                  items:
-                    type: string
-                    format: binary
-                reference_urls:
-                  type: array
-                  description: One or more http(s) URLs to fetch as references.
-                  items:
-                    type: string
-                    format: uri
-              required: [scene, insert_index]
-      responses:
-        '200':
-          description: Updated plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-        '413':
-          $ref: '#/components/responses/Error413'
-
-  /api/v1/workflows/{workflowID}/chapters/{chapterID}/scenes/{sceneID}:
-    delete:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Remove a scene (references to it are cleared)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/ChapterID'
-        - $ref: '#/components/parameters/SceneID'
-      responses:
-        '200':
-          description: Updated plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-    patch:
-      tags: [Scenes]
-      security: [{bearerAuth: []}]
-      summary: Patch a scene (supports scene_id rename; transition targets validated to chapter)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/ChapterID'
-        - $ref: '#/components/parameters/SceneID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                scene_id: {type: string}
-                short_introduction: {type: string}
-                description: {type: string}
-                character_ids:
-                  type: array
-                  items: {type: string}
-                image_prompt_params:
-                  $ref: '#/components/schemas/ImagePromptParams'
-                video_motion_prompt: {type: string}
-                transition_logic:
-                  $ref: '#/components/schemas/PlotTransition'
-      responses:
-        '200':
-          description: Updated plot asset
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PlotAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
-        '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
-
-  /api/v1/workflows/{workflowID}/assets/{assetType}/versions:
-    get:
-      tags: [Assets]
-      security: [{bearerAuth: []}]
-      summary: List asset versions and selected pointer (story, character_images, scene_images, videos)
-      parameters:
-        - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/AssetTypeSelectable'
         - in: query
-          name: limit
+          name: version
           schema:
             type: integer
-            minimum: 1
-            maximum: 200
-            default: 20
       responses:
         '200':
-          description: Versions list
+          description: Asset retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VersionPointer'
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/WorkflowAsset'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/assets/{assetType}/selection:
-    patch:
-      tags: [Assets]
-      security: [{bearerAuth: []}]
-      summary: Set or clear selected asset version (no copy)
+  /workflows/{workflowID}/plot:
+    get:
+      tags:
+        - Assets
+      summary: Get plot asset
+      description: Retrieve plot asset for workflow
+      operationId: getPlotAsset
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
-        - $ref: '#/components/parameters/AssetTypeSelectable'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/first-frame/images:
+    get:
+      tags:
+        - Assets
+      summary: Get first frame images asset
+      description: Retrieve first frame images asset
+      operationId: getFirstFrameImagesAsset
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: version
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Asset retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAsset'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/status:
+    get:
+      tags:
+        - Workflows
+      summary: Get workflow status
+      description: Retrieve workflow status and progress
+      operationId: getWorkflowStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - in: query
+          name: async
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/invite-codes:
+    post:
+      tags:
+        - Admin
+      summary: Create invite code
+      description: Create new invite code
+      operationId: createInviteCode
+      security:
+        - bearerAuth: []
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                version:
-                  type: integer
-                  nullable: true
-                  description: Omit or null to clear selection.
+              $ref: '#/components/schemas/CreateInviteCodeRequest'
       responses:
         '200':
-          description: Selected version set
+          description: Invite code created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SelectedVersionResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
+                $ref: '#/components/schemas/InviteCode'
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
-  /api/v1/workflows/{workflowID}/story/summary:
-    patch:
-      tags: [Workflows]
-      security: [{bearerAuth: []}]
-      summary: Update story summary text only
+    get:
+      tags:
+        - Admin
+      summary: List invite codes
+      description: Get all invite codes
+      operationId: listInviteCodes
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Invite codes retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/invite-codes/{inviteCodeID}:
+    get:
+      tags:
+        - Admin
+      summary: Get invite code
+      description: Retrieve invite code details
+      operationId: getInviteCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InviteCodeID'
+      responses:
+        '200':
+          description: Invite code retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Invite code not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Admin
+      summary: Update invite code
+      description: Update invite code details
+      operationId: updateInviteCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InviteCodeID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInviteCodeRequest'
+      responses:
+        '200':
+          description: Invite code updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/waitlist:
+    get:
+      tags:
+        - Admin
+      summary: List waitlist
+      description: Get all waitlist entries
+      operationId: listWaitlist
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/WaitlistStatus'
+      responses:
+        '200':
+          description: Waitlist retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /debug/text-llm/config:
+    get:
+      tags:
+        - Debug
+      summary: Get text LLM config
+      description: Retrieve text LLM configuration
+      operationId: getTextLLMConfig
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Config retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /debug/text-llm/invoke:
+    post:
+      tags:
+        - Debug
+      summary: Invoke text LLM
+      description: Directly invoke text LLM for debugging
+      operationId: invokeTextLLM
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [summary]
-              properties:
-                summary: {type: string}
       responses:
         '200':
-          description: Updated story asset
+          description: LLM invoked successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StoryAssetResponse'
-        '400':
-          $ref: '#/components/responses/Error400'
+                type: object
         '401':
-          $ref: '#/components/responses/Error401'
-        '404':
-          $ref: '#/components/responses/Error404'
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /debug/text-llm/history:
+    get:
+      tags:
+        - Debug
+      summary: Get text LLM history
+      description: Retrieve text LLM invocation history
+      operationId: getTextLLMHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: History retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mock/users/{userID}/subscription:
+    post:
+      tags:
+        - Mock
+      summary: Mock subscription
+      description: Create mock subscription for testing
+      operationId: mockSubscription
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Mock subscription created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mock/users/{userID}/booster:
+    post:
+      tags:
+        - Mock
+      summary: Mock booster
+      description: Create mock booster for testing
+      operationId: mockBooster
+      parameters:
+        - $ref: '#/components/parameters/UserID'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Mock booster created
+          content:
+            application/json:
+              schema:
+                type: object
