@@ -807,7 +807,7 @@ components:
         mime_type:
           type: string
           nullable: true
-          description: Detected MIME type (example: image/png).
+          description: "Detected MIME type (example: image/png)."
 
     UtilityToolImageOutput:
       type: object
@@ -826,7 +826,7 @@ components:
         mime_type:
           type: string
           nullable: true
-          description: MIME type (example: image/png).
+          description: "MIME type (example: image/png)."
 
     UtilityToolVideoOutput:
       type: object
@@ -841,7 +841,7 @@ components:
         mime_type:
           type: string
           nullable: true
-          description: MIME type (example: video/mp4).
+          description: "MIME type (example: video/mp4)."
 
     UtilityToolImageJob:
       type: object
