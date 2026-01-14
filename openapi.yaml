@@ -6,9 +6,9 @@ info:
   contact:
     name: API Support
 servers:
-  - url: https://api.example.com
+  - url: https://api.example.com/api/v1
     description: Production server
-  - url: http://localhost:8080
+  - url: http://localhost:8080/api/v1
     description: Development server
 
 tags:
@@ -16,6 +16,16 @@ tags:
     description: Health check endpoints
   - name: Auth
     description: Authentication and user management
+  - name: Config
+    description: Public configuration endpoints
+  - name: Models
+    description: LLM model catalog endpoints
+  - name: UserImages
+    description: User image generation endpoints
+  - name: Canvans
+    description: Canvan management endpoints
+  - name: Storage
+    description: Upload utilities
   - name: OAuth
     description: OAuth authentication
   - name: Workflows
@@ -93,13 +103,11 @@ components:
         type: string
         enum:
           - story
-          - plot
           - character_images
           - scene_images
           - first_frame_images
           - videos
-          - publish
-      description: Type of workflow asset
+      description: Selectable asset type
 
     UserID:
       in: path
@@ -117,6 +125,24 @@ components:
       schema:
         type: string
       description: Checkout session identifier
+
+    CanvanID:
+      in: path
+      name: canvanID
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Canvan identifier
+
+    Email:
+      in: path
+      name: email
+      required: true
+      schema:
+        type: string
+        format: email
+      description: Email address
 
     JobID:
       in: path
@@ -161,6 +187,14 @@ components:
       schema:
         type: string
       description: Pagination cursor for next page
+
+    VersionCursor:
+      in: query
+      name: cursor
+      schema:
+        type: integer
+        minimum: 0
+      description: Pagination cursor (integer version)
 
   schemas:
     Error:
@@ -573,8 +607,6 @@ components:
     CheckoutResponse:
       type: object
       properties:
-        session_id:
-          type: string
         checkout_url:
           type: string
 
@@ -1096,8 +1128,300 @@ components:
           nullable: true
           description: RFC3339 cursor for the next page (use as ?cursor=...).
 
+    PublicConfig:
+      type: object
+      description: Public configuration exposed to clients.
+      properties:
+        support_email:
+          type: string
+          format: email
+        support_url:
+          type: string
+          format: uri
+          nullable: true
+        terms_url:
+          type: string
+          format: uri
+          nullable: true
+        privacy_url:
+          type: string
+          format: uri
+          nullable: true
+
+    ValidateInviteCodeRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+
+    ValidateInviteCodeResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        code:
+          type: string
+        credits_reward:
+          type: integer
+        remaining_quota:
+          type: integer
+        message:
+          type: string
+
+    WaitlistResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        status:
+          type: string
+
+    UploadURLResponse:
+      type: object
+      properties:
+        upload_url:
+          type: string
+
+    UserImageInput:
+      type: object
+      properties:
+        storage_key:
+          type: string
+        url:
+          type: string
+        mime_type:
+          type: string
+
+    UserImageOutput:
+      type: object
+      properties:
+        storage_key:
+          type: string
+        url:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        mime_type:
+          type: string
+
+    UserImageGenerateResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prompt:
+          type: string
+        input_image:
+          $ref: '#/components/schemas/UserImageInput'
+        output_image:
+          $ref: '#/components/schemas/UserImageOutput'
+        created_at:
+          type: string
+          format: date-time
+
+    UserImageHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prompt:
+          type: string
+        input_image:
+          $ref: '#/components/schemas/UserImageInput'
+        output_image:
+          $ref: '#/components/schemas/UserImageOutput'
+        created_at:
+          type: string
+          format: date-time
+
+    UserImageHistoryResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserImageHistoryEntry'
+        next_cursor:
+          type: string
+          nullable: true
+          format: date-time
+
+    GenerateMultiImageRequest:
+      type: object
+      required:
+        - prompt
+        - image_urls
+      properties:
+        prompt:
+          type: string
+        image_urls:
+          type: array
+          items:
+            type: string
+        image_ratio:
+          type: string
+          nullable: true
+          enum:
+            - "16:9"
+            - "9:16"
+
+    Canvan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CanvanListResponse:
+      type: object
+      properties:
+        canvans:
+          type: array
+          items:
+            $ref: '#/components/schemas/Canvan'
+        next_cursor:
+          type: string
+          nullable: true
+          format: date-time
+
+    CreateCanvanRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    UpdateCanvanRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    LLMModelView:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        provider:
+          type: string
+        type:
+          type: string
+
+    LLMModelsResponse:
+      type: object
+      properties:
+        text:
+          type: array
+          items:
+            $ref: '#/components/schemas/LLMModelView'
+        image:
+          type: array
+          items:
+            $ref: '#/components/schemas/LLMModelView'
+        video:
+          type: array
+          items:
+            $ref: '#/components/schemas/LLMModelView'
+
+    CheckoutSessionResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        status:
+          type: string
+        payment_status:
+          type: string
+        customer_email:
+          type: string
+          format: email
+          nullable: true
+        amount_total:
+          type: integer
+          format: int64
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        success_url:
+          type: string
+          nullable: true
+        cancel_url:
+          type: string
+          nullable: true
+        created_at:
+          type: integer
+          format: int64
+          nullable: true
+        expires_at:
+          type: integer
+          format: int64
+          nullable: true
+
+    CheckoutSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        product_name:
+          type: string
+        price_usd:
+          type: number
+          format: float
+        type:
+          type: string
+          enum:
+            - subscription
+            - topup
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
 paths:
   /healthz:
+    servers:
+      - url: https://api.example.com
+        description: Production server
+      - url: http://localhost:8080
+        description: Development server
     get:
       tags:
         - Health
@@ -1108,13 +1432,10 @@ paths:
         '200':
           description: Service is healthy
           content:
-            application/json:
+            text/plain:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
+                type: string
+                example: ok
 
   /users/register:
     post:
@@ -1358,20 +1679,71 @@ paths:
               $ref: '#/components/schemas/WaitlistRequest'
       responses:
         '200':
+          description: Already on waitlist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WaitlistResponse'
+        '201':
           description: Added to waitlist
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
+                $ref: '#/components/schemas/WaitlistResponse'
         '400':
           description: Invalid request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /invite_codes/validate:
+    post:
+      tags:
+        - Auth
+      summary: Validate invite code
+      description: Check if an invite code is valid and available for use
+      operationId: validateInviteCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateInviteCodeRequest'
+      responses:
+        '200':
+          description: Invite code validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateInviteCodeResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /config/public:
+    get:
+      tags:
+        - Config
+      summary: Get public config
+      description: Retrieve public configuration settings
+      operationId: getPublicConfig
+      responses:
+        '200':
+          description: Public config retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicConfig'
 
   /webhooks/stripe:
     post:
@@ -1391,6 +1763,35 @@ paths:
           description: Webhook processed
         '400':
           description: Invalid webhook
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /llm-models:
+    get:
+      tags:
+        - Models
+      summary: List LLM models
+      description: Retrieve available text, image, and video models. Use the Language header to localize names/descriptions.
+      operationId: listLLMModels
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Language
+          schema:
+            type: string
+            default: zh
+      responses:
+        '200':
+          description: Models retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LLMModelsResponse'
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -1550,7 +1951,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/CheckoutSessionResponse'
         '401':
           description: Unauthorized
           content:
@@ -1559,6 +1960,53 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payments/checkout/success:
+    get:
+      tags:
+        - Payments
+      summary: Get checkout success information
+      description: Retrieve formatted details for a successful checkout session
+      operationId: getCheckoutSuccess
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: session_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Checkout success retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSuccessResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Session does not belong to user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Failed to retrieve checkout session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Payment service unavailable
           content:
             application/json:
               schema:
@@ -1791,7 +2239,7 @@ paths:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/CharacterID'
         - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/VersionCursor'
       responses:
         '200':
           description: History retrieved successfully
@@ -1951,7 +2399,7 @@ paths:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/SceneID'
         - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/VersionCursor'
       responses:
         '200':
           description: History retrieved successfully
@@ -2004,6 +2452,8 @@ paths:
       parameters:
         - $ref: '#/components/parameters/WorkflowID'
         - $ref: '#/components/parameters/SceneID'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/VersionCursor'
       responses:
         '200':
           description: History retrieved successfully
@@ -2099,6 +2549,40 @@ paths:
             application/json:
               schema:
                 type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /workflows/{workflowID}/scenes/{sceneID}/videos/history:
+    get:
+      tags:
+        - Videos
+      summary: Get scene video history
+      description: List all video versions for scene
+      operationId: getSceneVideoHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+        - $ref: '#/components/parameters/SceneID'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/VersionCursor'
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           description: Unauthorized
           content:
@@ -2889,15 +3373,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /debug/text-llm/config:
+  /text-llm-debug/config:
     get:
       tags:
         - Debug
       summary: Get text LLM config
       description: Retrieve text LLM configuration
       operationId: getTextLLMConfig
-      security:
-        - bearerAuth: []
       responses:
         '200':
           description: Config retrieved
@@ -2912,15 +3394,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /debug/text-llm/invoke:
+  /text-llm-debug/invoke:
     post:
       tags:
         - Debug
       summary: Invoke text LLM
       description: Directly invoke text LLM for debugging
       operationId: invokeTextLLM
-      security:
-        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -2941,15 +3421,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /debug/text-llm/history:
+  /text-llm-debug/history:
     get:
       tags:
         - Debug
       summary: Get text LLM history
       description: Retrieve text LLM invocation history
       operationId: getTextLLMHistory
-      security:
-        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Offset'
@@ -2962,6 +3440,360 @@ paths:
                 type: object
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /upload-url:
+    post:
+      tags:
+        - Storage
+      summary: Upload image file
+      description: Upload an image file and return a public URL.
+      operationId: uploadImage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadURLResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user-images/generate:
+    post:
+      tags:
+        - UserImages
+      summary: Generate image from reference image
+      description: Generate a new image using a reference image and prompt.
+      operationId: generateUserImage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - prompt
+              properties:
+                file:
+                  type: string
+                  format: binary
+                prompt:
+                  type: string
+      responses:
+        '200':
+          description: Image generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserImageGenerateResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Image generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user-images/generate-multi:
+    post:
+      tags:
+        - UserImages
+      summary: Generate image from multiple references
+      description: Generate a single image from multiple input URLs.
+      operationId: generateMultiImage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateMultiImageRequest'
+      responses:
+        '200':
+          description: Image generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserImageGenerateResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Image generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user-images/history:
+    get:
+      tags:
+        - UserImages
+      summary: Get user image history
+      description: Retrieve paginated history of user image generations.
+      operationId: listUserImageHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: History retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserImageHistoryResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user-images/canvans:
+    post:
+      tags:
+        - Canvans
+      summary: Create canvan
+      description: Create a new canvan with a name and JSON data payload.
+      operationId: createCanvan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCanvanRequest'
+      responses:
+        '201':
+          description: Canvan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canvan'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Create canvan failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - Canvans
+      summary: List canvans
+      description: Retrieve a paginated list of the user's canvans.
+      operationId: listCanvans
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Canvans retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvanListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user-images/canvans/{canvanID}:
+    get:
+      tags:
+        - Canvans
+      summary: Get canvan
+      description: Retrieve a canvan by ID.
+      operationId: getCanvan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvanID'
+      responses:
+        '200':
+          description: Canvan retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canvan'
+        '400':
+          description: Invalid canvan ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Canvan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      tags:
+        - Canvans
+      summary: Update canvan
+      description: Update an existing canvan's name and data.
+      operationId: updateCanvan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvanID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCanvanRequest'
+      responses:
+        '200':
+          description: Canvan updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Canvan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Canvans
+      summary: Delete canvan
+      description: Delete a canvan by ID.
+      operationId: deleteCanvan
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvanID'
+      responses:
+        '200':
+          description: Canvan deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          description: Invalid canvan ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Canvan not found
           content:
             application/json:
               schema:
@@ -3246,6 +4078,141 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mock/invite_codes:
+    post:
+      tags:
+        - Mock
+      summary: Mock create invite code
+      description: Development-only endpoint to create invite codes without authentication
+      operationId: mockCreateInviteCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInviteCodeRequest'
+      responses:
+        '201':
+          description: Invite code created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCode'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Create invite code failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mock/users/email/{email}:
+    delete:
+      tags:
+        - Mock
+      summary: Mock delete user
+      description: Development-only endpoint to delete a user by email
+      operationId: mockDeleteUser
+      parameters:
+        - $ref: '#/components/parameters/Email'
+      responses:
+        '200':
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user_id:
+                    type: string
+                    format: uuid
+                  email:
+                    type: string
+                    format: email
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Delete user failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mock/workflows/{workflowID}:
+    delete:
+      tags:
+        - Mock
+      summary: Mock delete workflow
+      description: Development-only endpoint to delete a workflow without authentication
+      operationId: mockDeleteWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowID'
+      responses:
+        '204':
+          description: Workflow deleted
+        '404':
+          description: Workflow not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Delete workflow failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /mock/upload-url:
+    post:
+      tags:
+        - Mock
+      summary: Mock upload image file
+      description: Upload an image file without authentication and return a public URL.
+      operationId: mockUploadImage
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadURLResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Upload failed
           content:
             application/json:
               schema:
