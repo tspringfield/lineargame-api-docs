@@ -26,6 +26,8 @@ tags:
     description: Scene image and video management
   - name: Videos
     description: Video generation and management
+  - name: UtilityTools
+    description: Utility tool image and video generation
   - name: Assets
     description: Asset version management
   - name: Credits
@@ -203,6 +205,8 @@ components:
           minLength: 8
         invite_code:
           type: string
+        verification_code:
+          type: string
 
     LoginRequest:
       type: object
@@ -223,8 +227,59 @@ components:
           type: string
         refresh_token:
           type: string
-        user:
-          $ref: '#/components/schemas/User'
+        expires_at:
+          type: string
+          format: date-time
+        expires_in:
+          type: integer
+
+    RegisterResponse:
+      type: object
+      required:
+        - verification_required
+        - email
+      properties:
+        verification_required:
+          type: boolean
+        email:
+          type: string
+          format: email
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - email
+        - code
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+
+    ResendVerificationRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    VerificationRequiredResponse:
+      type: object
+      required:
+        - error
+        - verification_required
+      properties:
+        error:
+          type: string
+        verification_required:
+          type: boolean
 
     RefreshTokenRequest:
       type: object
@@ -707,6 +762,232 @@ components:
         has_more:
           type: boolean
 
+    UtilityToolReference:
+      type: object
+      properties:
+        storage_key:
+          type: string
+        url:
+          type: string
+        mime_type:
+          type: string
+          nullable: true
+
+    UtilityToolImageOutput:
+      type: object
+      properties:
+        storage_key:
+          type: string
+        url:
+          type: string
+        thumbnail_url:
+          type: string
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+
+    UtilityToolVideoOutput:
+      type: object
+      properties:
+        storage_key:
+          type: string
+        url:
+          type: string
+        mime_type:
+          type: string
+          nullable: true
+
+    UtilityToolImageJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, generating, succeeded, failed]
+        prompt:
+          type: string
+        model:
+          type: string
+        ratio:
+          type: string
+        reference_images:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolReference'
+        output_image:
+          allOf:
+            - $ref: '#/components/schemas/UtilityToolImageOutput'
+          nullable: true
+        credits_charged:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    UtilityToolVideoJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, generating, succeeded, failed]
+        prompt:
+          type: string
+        model:
+          type: string
+        ratio:
+          type: string
+        duration_seconds:
+          type: integer
+        mode:
+          type: string
+        reference_images:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolReference'
+        output_video:
+          allOf:
+            - $ref: '#/components/schemas/UtilityToolVideoOutput'
+          nullable: true
+        credits_charged:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    UtilityToolCreditUsage:
+      type: object
+      properties:
+        requested:
+          type: integer
+        processed:
+          type: integer
+        unit_cost:
+          type: integer
+        charged:
+          type: integer
+        shortfall:
+          type: integer
+          nullable: true
+        available:
+          type: integer
+          nullable: true
+
+    UtilityToolImageGenerateRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+        model:
+          type: string
+        ratio:
+          type: string
+        reference_images:
+          type: array
+          items:
+            type: string
+        quantity:
+          type: integer
+
+    UtilityToolVideoGenerateRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+        model:
+          type: string
+        ratio:
+          type: string
+        duration_seconds:
+          type: integer
+        mode:
+          type: string
+        reference_images:
+          type: array
+          items:
+            type: string
+        quantity:
+          type: integer
+
+    UtilityToolImageEnqueueResponse:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolImageJob'
+        requested_credits:
+          $ref: '#/components/schemas/UtilityToolCreditUsage'
+
+    UtilityToolVideoEnqueueResponse:
+      type: object
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolVideoJob'
+        requested_credits:
+          $ref: '#/components/schemas/UtilityToolCreditUsage'
+
+    UtilityToolImageJobsResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolImageJob'
+        next_cursor:
+          type: string
+          nullable: true
+
+    UtilityToolVideoJobsResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/UtilityToolVideoJob'
+        next_cursor:
+          type: string
+          nullable: true
+
 paths:
   /healthz:
     get:
@@ -741,7 +1022,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
-        '200':
+        '201':
           description: User registered successfully
           content:
             application/json:
@@ -749,6 +1030,12 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '400':
           description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already exists
           content:
             application/json:
               schema:
@@ -776,6 +1063,78 @@ paths:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
           description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Email verification required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerificationRequiredResponse'
+
+  /users/verify-email:
+    post:
+      tags:
+        - Auth
+      summary: Verify email address
+      description: Verify email address using a one-time code (returns tokens once the account is fully registered)
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid verification code or email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/verify-email/resend:
+    post:
+      tags:
+        - Auth
+      summary: Resend email verification code
+      description: Send another email verification code
+      operationId: resendVerifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendVerificationRequest'
+      responses:
+        '200':
+          description: Verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Verification email recently sent
           content:
             application/json:
               schema:
@@ -2493,6 +2852,290 @@ paths:
             application/json:
               schema:
                 type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/images:
+    post:
+      tags:
+        - UtilityTools
+      summary: Enqueue utility image generation
+      description: Create one or more image generation jobs for the utility tool.
+      operationId: utilityImageGenerate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UtilityToolImageGenerateRequest'
+      responses:
+        '202':
+          description: Image jobs enqueued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolImageEnqueueResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Insufficient credits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/images/jobs:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility image jobs
+      description: Retrieve recent utility image jobs (queue view).
+      operationId: utilityImageJobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Image jobs retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolImageJobsResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/images/jobs/{jobID}:
+    get:
+      tags:
+        - UtilityTools
+      summary: Get utility image job
+      description: Retrieve a specific utility image job by ID.
+      operationId: utilityImageJobStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobID'
+      responses:
+        '200':
+          description: Image job retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolImageJob'
+        '400':
+          description: Invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/images/assets:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility image assets
+      description: Retrieve completed utility image jobs (assets view).
+      operationId: utilityImageAssets
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Image assets retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolImageJobsResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/videos:
+    post:
+      tags:
+        - UtilityTools
+      summary: Enqueue utility video generation
+      description: Create one or more video generation jobs for the utility tool.
+      operationId: utilityVideoGenerate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UtilityToolVideoGenerateRequest'
+      responses:
+        '202':
+          description: Video jobs enqueued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolVideoEnqueueResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Insufficient credits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/videos/jobs:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility video jobs
+      description: Retrieve recent utility video jobs (queue view).
+      operationId: utilityVideoJobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Video jobs retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolVideoJobsResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/videos/jobs/{jobID}:
+    get:
+      tags:
+        - UtilityTools
+      summary: Get utility video job
+      description: Retrieve a specific utility video job by ID.
+      operationId: utilityVideoJobStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobID'
+      responses:
+        '200':
+          description: Video job retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolVideoJob'
+        '400':
+          description: Invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/videos/assets:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility video assets
+      description: Retrieve completed utility video jobs (assets view).
+      operationId: utilityVideoAssets
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Video assets retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolVideoJobsResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           description: Unauthorized
           content:
