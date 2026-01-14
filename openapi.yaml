@@ -764,190 +764,289 @@ components:
 
     UtilityToolReference:
       type: object
+      description: Reference image metadata stored with a job.
       properties:
         storage_key:
           type: string
+          description: Storage key for the reference image (returned by /upload-url or extracted from a public URL).
         url:
           type: string
+          description: Public CDN URL for the reference image.
         mime_type:
           type: string
           nullable: true
+          description: Detected MIME type (example: image/png).
 
     UtilityToolImageOutput:
       type: object
+      description: Generated image asset metadata.
       properties:
         storage_key:
           type: string
+          description: Storage key for the generated image.
         url:
           type: string
+          description: Public CDN URL for the generated image.
         thumbnail_url:
           type: string
           nullable: true
+          description: Public CDN URL for the thumbnail, when available.
         mime_type:
           type: string
           nullable: true
+          description: MIME type (example: image/png).
 
     UtilityToolVideoOutput:
       type: object
+      description: Generated video asset metadata.
       properties:
         storage_key:
           type: string
+          description: Storage key for the generated video.
         url:
           type: string
+          description: Public CDN URL for the generated video.
         mime_type:
           type: string
           nullable: true
+          description: MIME type (example: video/mp4).
 
     UtilityToolImageJob:
       type: object
+      description: Image generation job created by the utility tool.
       properties:
         id:
           type: string
           format: uuid
+          description: Job identifier.
         status:
           type: string
           enum: [queued, generating, succeeded, failed]
+          description: Job status (queued -> generating -> succeeded/failed).
         prompt:
           type: string
+          description: Prompt used for generation.
         model:
           type: string
+          description: Image model ID (nano-banana or nano-banana-pro).
         ratio:
           type: string
+          description: Aspect ratio (16:9 or 9:16).
         reference_images:
           type: array
+          description: Resolved reference image metadata for this job.
           items:
             $ref: '#/components/schemas/UtilityToolReference'
         output_image:
           allOf:
             - $ref: '#/components/schemas/UtilityToolImageOutput'
           nullable: true
+          description: Generated image metadata (present when status is succeeded).
         credits_charged:
           type: integer
+          description: Credits charged for this job (0 until succeeded).
         created_at:
           type: string
           format: date-time
+          description: Job creation timestamp.
         started_at:
           type: string
           format: date-time
           nullable: true
+          description: Job start timestamp.
         completed_at:
           type: string
           format: date-time
           nullable: true
+          description: Job completion timestamp.
         error_message:
           type: string
           nullable: true
+          description: Failure reason when status is failed.
 
     UtilityToolVideoJob:
       type: object
+      description: Video generation job created by the utility tool.
       properties:
         id:
           type: string
           format: uuid
+          description: Job identifier.
         status:
           type: string
           enum: [queued, generating, succeeded, failed]
+          description: Job status (queued -> generating -> succeeded/failed).
         prompt:
           type: string
+          description: Prompt used for generation.
         model:
           type: string
+          description: Video model ID (veo-3.1, veo-3.1-fast, sora-2, sora-2-pro).
         ratio:
           type: string
+          description: Aspect ratio (16:9 or 9:16).
         duration_seconds:
           type: integer
+          description: Video duration in seconds (4 or 8).
         mode:
           type: string
+          description: Generation mode (text, first_frame, first_last_frame, multi_image).
         reference_images:
           type: array
+          description: Resolved reference image metadata for this job.
           items:
             $ref: '#/components/schemas/UtilityToolReference'
         output_video:
           allOf:
             - $ref: '#/components/schemas/UtilityToolVideoOutput'
           nullable: true
+          description: Generated video metadata (present when status is succeeded).
         credits_charged:
           type: integer
+          description: Credits charged for this job (0 until succeeded).
         created_at:
           type: string
           format: date-time
+          description: Job creation timestamp.
         started_at:
           type: string
           format: date-time
           nullable: true
+          description: Job start timestamp.
         completed_at:
           type: string
           format: date-time
           nullable: true
+          description: Job completion timestamp.
         error_message:
           type: string
           nullable: true
+          description: Failure reason when status is failed.
 
     UtilityToolCreditUsage:
       type: object
+      description: Credit usage summary for an enqueue request.
       properties:
         requested:
           type: integer
+          description: Total jobs requested (quantity).
         processed:
           type: integer
+          description: Jobs successfully reserved for.
         unit_cost:
           type: integer
+          description: Credits per job.
         charged:
           type: integer
+          description: Total credits reserved (processed * unit_cost).
         shortfall:
           type: integer
           nullable: true
+          description: Missing credits when insufficient.
         available:
           type: integer
           nullable: true
+          description: Available credits at the time of the request.
 
     UtilityToolImageGenerateRequest:
       type: object
+      description: Request to create one or more utility image jobs.
       required:
         - prompt
       properties:
         prompt:
           type: string
+          description: Text prompt (max 2000 characters).
         model:
           type: string
+          description: Image model ID.
+          enum: [nano-banana, nano-banana-pro]
+          default: nano-banana
         ratio:
           type: string
+          description: Aspect ratio.
+          enum: ['16:9', '9:16']
+          default: '16:9'
         reference_images:
           type: array
+          description: >
+            Optional reference images. Each item is either a storage key returned
+            by /upload-url or the public URL returned by /upload-url (not base64).
+            Max 10 images; WebP is not supported.
+          maxItems: 10
           items:
             type: string
+          example:
+            - https://cdn.example.com/uploads/2025/03/01/ref-01.png
         quantity:
           type: integer
+          description: Number of images to generate (1-4). One job per image.
+          minimum: 1
+          maximum: 4
+          default: 1
 
     UtilityToolVideoGenerateRequest:
       type: object
+      description: Request to create one or more utility video jobs.
       required:
         - prompt
       properties:
         prompt:
           type: string
+          description: Text prompt (max 2000 characters).
         model:
           type: string
+          description: Video model ID.
+          enum: [veo-3.1, veo-3.1-fast, sora-2, sora-2-pro]
+          default: veo-3.1
         ratio:
           type: string
+          description: Aspect ratio.
+          enum: ['16:9', '9:16']
+          default: '16:9'
         duration_seconds:
           type: integer
+          description: Video duration in seconds.
+          enum: [4, 8]
+          default: 8
         mode:
           type: string
+          description: >
+            Generation mode. Impacts required reference_images:
+            text requires 0 images;
+            first_frame requires 1 image (Veo only);
+            first_last_frame requires 2 images (Veo only);
+            multi_image uses 1-3 images (Veo preview only, ratio 16:9 and duration 8).
+          enum: [text, first_frame, first_last_frame, multi_image]
+          default: text
         reference_images:
           type: array
+          description: >
+            Reference image list. Each item is either a storage key returned by
+            /upload-url or the public URL returned by /upload-url (not base64).
+            WebP is not supported. Count must match the selected mode/model.
           items:
             type: string
+          example:
+            - https://cdn.example.com/uploads/2025/03/01/ref-01.png
         quantity:
           type: integer
+          description: Number of videos to generate (1-4). One job per video.
+          minimum: 1
+          maximum: 4
+          default: 1
 
     UtilityToolImageEnqueueResponse:
       type: object
+      description: Enqueue response for utility image generation.
       properties:
         batch_id:
           type: string
           format: uuid
+          description: Batch identifier for the enqueue request.
         jobs:
           type: array
+          description: Jobs created (one per requested quantity).
           items:
             $ref: '#/components/schemas/UtilityToolImageJob'
         requested_credits:
@@ -955,12 +1054,15 @@ components:
 
     UtilityToolVideoEnqueueResponse:
       type: object
+      description: Enqueue response for utility video generation.
       properties:
         batch_id:
           type: string
           format: uuid
+          description: Batch identifier for the enqueue request.
         jobs:
           type: array
+          description: Jobs created (one per requested quantity).
           items:
             $ref: '#/components/schemas/UtilityToolVideoJob'
         requested_credits:
@@ -968,25 +1070,31 @@ components:
 
     UtilityToolImageJobsResponse:
       type: object
+      description: Paginated utility image jobs (queue or assets view).
       properties:
         entries:
           type: array
+          description: Job entries in descending creation order.
           items:
             $ref: '#/components/schemas/UtilityToolImageJob'
         next_cursor:
           type: string
           nullable: true
+          description: RFC3339 cursor for the next page (use as ?cursor=...).
 
     UtilityToolVideoJobsResponse:
       type: object
+      description: Paginated utility video jobs (queue or assets view).
       properties:
         entries:
           type: array
+          description: Job entries in descending creation order.
           items:
             $ref: '#/components/schemas/UtilityToolVideoJob'
         next_cursor:
           type: string
           nullable: true
+          description: RFC3339 cursor for the next page (use as ?cursor=...).
 
 paths:
   /healthz:
@@ -2864,7 +2972,7 @@ paths:
       tags:
         - UtilityTools
       summary: Enqueue utility image generation
-      description: Create one or more image generation jobs for the utility tool.
+      description: Create one or more image generation jobs for the utility tool. reference_images must be storage keys or public URLs returned by /upload-url (not base64).
       operationId: utilityImageGenerate
       security:
         - bearerAuth: []
@@ -2905,7 +3013,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility image jobs
-      description: Retrieve recent utility image jobs (queue view).
+      description: Retrieve recent utility image jobs (queue view). Use next_cursor as ?cursor=... for pagination.
       operationId: utilityImageJobs
       security:
         - bearerAuth: []
@@ -2974,7 +3082,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility image assets
-      description: Retrieve completed utility image jobs (assets view).
+      description: Retrieve completed utility image jobs (assets view). Use next_cursor as ?cursor=... for pagination.
       operationId: utilityImageAssets
       security:
         - bearerAuth: []
@@ -3006,7 +3114,7 @@ paths:
       tags:
         - UtilityTools
       summary: Enqueue utility video generation
-      description: Create one or more video generation jobs for the utility tool.
+      description: Create one or more video generation jobs for the utility tool. reference_images must be storage keys or public URLs returned by /upload-url (not base64).
       operationId: utilityVideoGenerate
       security:
         - bearerAuth: []
@@ -3047,7 +3155,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility video jobs
-      description: Retrieve recent utility video jobs (queue view).
+      description: Retrieve recent utility video jobs (queue view). Use next_cursor as ?cursor=... for pagination.
       operationId: utilityVideoJobs
       security:
         - bearerAuth: []
@@ -3116,7 +3224,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility video assets
-      description: Retrieve completed utility video jobs (assets view).
+      description: Retrieve completed utility video jobs (assets view). Use next_cursor as ?cursor=... for pagination.
       operationId: utilityVideoAssets
       security:
         - bearerAuth: []
