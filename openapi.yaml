@@ -153,6 +153,15 @@ components:
         format: uuid
       description: Video job identifier
 
+    BatchID:
+      in: path
+      name: batchID
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Batch identifier
+
     InviteCodeID:
       in: path
       name: inviteCodeID
@@ -1123,6 +1132,70 @@ components:
           description: Job entries in descending creation order.
           items:
             $ref: '#/components/schemas/UtilityToolVideoJob'
+        next_cursor:
+          type: string
+          nullable: true
+          description: RFC3339 cursor for the next page (use as ?cursor=...).
+
+    UtilityToolImageBatch:
+      type: object
+      description: Image job batch created by a single enqueue request.
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+          description: Batch identifier.
+        created_at:
+          type: string
+          format: date-time
+          description: Batch creation timestamp (earliest job in the batch).
+        jobs:
+          type: array
+          description: Jobs in this batch ordered by creation time.
+          items:
+            $ref: '#/components/schemas/UtilityToolImageJob'
+
+    UtilityToolVideoBatch:
+      type: object
+      description: Video job batch created by a single enqueue request.
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+          description: Batch identifier.
+        created_at:
+          type: string
+          format: date-time
+          description: Batch creation timestamp (earliest job in the batch).
+        jobs:
+          type: array
+          description: Jobs in this batch ordered by creation time.
+          items:
+            $ref: '#/components/schemas/UtilityToolVideoJob'
+
+    UtilityToolImageBatchesResponse:
+      type: object
+      description: Paginated utility image batches with jobs.
+      properties:
+        entries:
+          type: array
+          description: Batch entries in descending creation order.
+          items:
+            $ref: '#/components/schemas/UtilityToolImageBatch'
+        next_cursor:
+          type: string
+          nullable: true
+          description: RFC3339 cursor for the next page (use as ?cursor=...).
+
+    UtilityToolVideoBatchesResponse:
+      type: object
+      description: Paginated utility video batches with jobs.
+      properties:
+        entries:
+          type: array
+          description: Batch entries in descending creation order.
+          items:
+            $ref: '#/components/schemas/UtilityToolVideoBatch'
         next_cursor:
           type: string
           nullable: true
@@ -3845,7 +3918,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility image jobs
-      description: Retrieve recent utility image jobs (queue view). Use next_cursor as ?cursor=... for pagination.
+      description: Retrieve recent utility image jobs (queue view). Results are ordered by created_at desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older items. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z.
       operationId: utilityImageJobs
       security:
         - bearerAuth: []
@@ -3909,12 +3982,91 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /utility-tools/images/batches:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility image batches
+      description: Retrieve batches of utility image jobs, grouped by enqueue request. Results are ordered by batch creation time desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older batches. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z. Optional batch_id filters to a single batch (cursor ignored).
+      operationId: utilityImageBatches
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: batch_id
+          in: query
+          required: false
+          description: Filter by batch ID (UUID).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Image batches retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolImageBatchesResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/images/batches/{batchID}:
+    delete:
+      tags:
+        - UtilityTools
+      summary: Delete utility image batch
+      description: Delete all jobs in a utility image batch. Batches with generating jobs cannot be deleted.
+      operationId: utilityImageBatchDelete
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BatchID'
+      responses:
+        '200':
+          description: Batch deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '400':
+          description: Invalid batch ID or batch cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Batch not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /utility-tools/images/assets:
     get:
       tags:
         - UtilityTools
       summary: List utility image assets
-      description: Retrieve completed utility image jobs (assets view). Use next_cursor as ?cursor=... for pagination.
+      description: Retrieve completed utility image jobs (assets view). Results are ordered by created_at desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older items. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z.
       operationId: utilityImageAssets
       security:
         - bearerAuth: []
@@ -3987,7 +4139,7 @@ paths:
       tags:
         - UtilityTools
       summary: List utility video jobs
-      description: Retrieve recent utility video jobs (queue view). Use next_cursor as ?cursor=... for pagination.
+      description: Retrieve recent utility video jobs (queue view). Results are ordered by created_at desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older items. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z.
       operationId: utilityVideoJobs
       security:
         - bearerAuth: []
@@ -4051,12 +4203,91 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /utility-tools/videos/batches:
+    get:
+      tags:
+        - UtilityTools
+      summary: List utility video batches
+      description: Retrieve batches of utility video jobs, grouped by enqueue request. Results are ordered by batch creation time desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older batches. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z. Optional batch_id filters to a single batch (cursor ignored).
+      operationId: utilityVideoBatches
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: batch_id
+          in: query
+          required: false
+          description: Filter by batch ID (UUID).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Video batches retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UtilityToolVideoBatchesResponse'
+        '400':
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /utility-tools/videos/batches/{batchID}:
+    delete:
+      tags:
+        - UtilityTools
+      summary: Delete utility video batch
+      description: Delete all jobs in a utility video batch. Batches with generating jobs cannot be deleted.
+      operationId: utilityVideoBatchDelete
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BatchID'
+      responses:
+        '200':
+          description: Batch deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '400':
+          description: Invalid batch ID or batch cannot be deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Batch not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /utility-tools/videos/assets:
     get:
       tags:
         - UtilityTools
       summary: List utility video assets
-      description: Retrieve completed utility video jobs (assets view). Use next_cursor as ?cursor=... for pagination.
+      description: Retrieve completed utility video jobs (assets view). Results are ordered by created_at desc. Pagination uses limit (default 20, max 100). If next_cursor is present, use it as ?cursor=... to fetch older items. Cursor is RFC3339, e.g. 2026-01-17T15:01:46Z.
       operationId: utilityVideoAssets
       security:
         - bearerAuth: []
