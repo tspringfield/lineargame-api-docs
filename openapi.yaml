@@ -420,6 +420,16 @@ components:
           type: string
           format: date-time
 
+    WorkflowModelsReq:
+      type: object
+      properties:
+        text_model_id:
+          type: string
+        image_model_id:
+          type: string
+        video_model_id:
+          type: string
+
     StoryRequest:
       type: object
       required:
@@ -428,6 +438,24 @@ components:
         idea:
           type: string
           description: Story idea or prompt
+        language:
+          type: string
+        workflow_id:
+          type: string
+          format: uuid
+        story_style:
+          type: string
+        visual_style:
+          type: string
+        aspect_ratio:
+          type: string
+        number_of_shots:
+          type: integer
+        batch:
+          type: integer
+        models:
+          $ref: '#/components/schemas/WorkflowModelsReq'
+          description: LLM model selections (optional, will use defaults if not provided)
 
     VideoJobStatus:
       type: string
@@ -2100,13 +2128,51 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/StoryRequest'
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - idea
+              properties:
+                idea:
+                  type: string
+                  description: Story idea or prompt
+                language:
+                  type: string
+                workflow_id:
+                  type: string
+                  format: uuid
+                story_style:
+                  type: string
+                visual_style:
+                  type: string
+                aspect_ratio:
+                  type: string
+                number_of_shots:
+                  type: integer
+                batch:
+                  type: integer
+                files:
+                  type: array
+                  description: Reference files to ground story and characters
+                  items:
+                    type: string
+                    format: binary
       responses:
         '200':
           description: Story workflow created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Workflow'
+                type: object
+                additionalProperties: true
+        '202':
+          description: Story generation accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
         '400':
           description: Invalid request
           content:
@@ -3187,7 +3253,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/JobID'
+        - name: jobID
+          in: path
+          required: true
+          description: Comma-separated job IDs (UUIDs)
+          schema:
+            type: string
       responses:
         '200':
           description: Job status retrieved
@@ -3955,7 +4026,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/JobID'
+        - name: jobID
+          in: path
+          required: true
+          description: Comma-separated job IDs (UUIDs)
+          schema:
+            type: string
       responses:
         '200':
           description: Image job retrieved
@@ -3965,6 +4041,45 @@ paths:
                 $ref: '#/components/schemas/UtilityToolImageJob'
         '400':
           description: Invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - UtilityTools
+      summary: Delete utility image job(s)
+      description: Delete one or more utility image jobs by ID (comma-separated). Generating jobs cannot be deleted.
+      operationId: utilityImageJobDelete
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobID'
+      responses:
+        '200':
+          description: Job(s) deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '400':
+          description: Invalid job IDs or jobs cannot be deleted
           content:
             application/json:
               schema:
@@ -4186,6 +4301,45 @@ paths:
                 $ref: '#/components/schemas/UtilityToolVideoJob'
         '400':
           description: Invalid job ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - UtilityTools
+      summary: Delete utility video job(s)
+      description: Delete one or more utility video jobs by ID (comma-separated). Generating jobs cannot be deleted.
+      operationId: utilityVideoJobDelete
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobID'
+      responses:
+        '200':
+          description: Job(s) deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        '400':
+          description: Invalid job IDs or jobs cannot be deleted
           content:
             application/json:
               schema:
